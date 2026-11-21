@@ -1,0 +1,18 @@
+{
+  "name": "renderer-tiles",
+  "version": "1.0.0",
+  "description": "Renderer tiles for Raku: Places, Signposts and Tracks, web tiles that show one record that isn't a tile (a place, a signpost, a song)",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev-place": "node place/dev/serve.mjs",
+    "dev-signpost": "node signpost/dev/serve.mjs",
+    "dev-track": "node track/dev/serve.mjs",
+    "test": "node --test test/*.test.mjs",
+    "publish-tile": "node scripts/publish.mjs"
+  }
+}
