@@ -1,31 +1,39 @@
 // track.js: the track renderer, "Tracks" (claude/mixtape-3c-track-renderer-notes.md, R3c-1 to R3c-9). A web tile that
 // plays one song record, ours (cafe.thunderbird.audio.track, from the Foundry's importer) or plyr.fm's (fm.plyr.track),
-// with its credits, in the look the listener picks: Jukebox, Reel-to-reel, Oscilloscope (green or rainbow) or Plain.
+// with its credits, in the look the listener picks: Jukebox, Reel-to-reel, Oscilloscope (green or rainbow), Aurora
+// (Tide, Bloom or Prism; R3c-12) or Plain.
 // Raku opens it when someone opens a song's address; any other host that speaks the tiles spec's data protocol
 // (tp-data, /.well-known/web-tiles/data.js) can use it too.
 //
 //   1. load the host's data.js, add a handler, then listen() (the host answers "ready" with the record);
-//   2. no record within a few seconds, or no data.js at all: "This tile plays songs." (opened alone, in a gallery…);
+//   2. no record within a few seconds, or no data.js at all: what Tracks is, with two songs to try in Raku (R3c-10:
+//      opened alone, in a gallery…);
 //   3. the song is fetched only when Play is pressed (R3c-4): sendData({ audio: <blob cid>, from: <record> }); the host
 //      answers with progress, then the bytes; they play from a blob: address, so seeking always works. A tile has no
 //      network of its own: a host that doesn't answer means the song can't play here;
 //   4. a cover, when the record lists one, through the host's picture request (as Places' tile card);
-//   5. the look and the scope's colour are remembered in the tile's own storage when the browser keeps it (R3c-1).
-import { readTrack, readAudioAnswer, readPicture, sizeLine, AUDIO_ERRORS, LOOKS, SCOPE_COLOURS, firstLook, formatTime, TRACK, PLYR } from './view.js';
+//   5. the look, the scope's colour and Aurora's world are remembered in the tile's own storage when the browser keeps
+//      it (R3c-1; all three written together on every change, so one never outlives the others).
+import {
+  readTrack, readAudioAnswer, readPicture, sizeLine, AUDIO_ERRORS, LOOKS, SCOPE_COLOURS, AURORA_WORLDS, AURORA_CREDIT,
+  firstLook, firstColour, firstWorld, formatTime, rakuLink, TRY_SONGS, RENDERERS_POST, TRACK, PLYR,
+} from './view.js';
 import { createScene, createListener } from './looks.js';
+import { createAurora, NB } from './aurora.js';
 
 const root = document.getElementById('track');
 const NO_HOST_MS = 3000;
 const STALL_MS = 30000;          // no progress from the host for this long: give up and offer Try again
 const PICTURE_WAIT_MS = 10000;
-const LOOK_KEY = 'tracks.look', COLOUR_KEY = 'tracks.scopeColour';
+const LOOK_KEY = 'tracks.look', COLOUR_KEY = 'tracks.scopeColour', WORLD_KEY = 'tracks.world';
 const lessMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 let sendData = null;
 let heard = false;
 let view = null;
 let look = firstLook(remembered(LOOK_KEY), lessMotion);
-let colour = SCOPE_COLOURS.some((c) => c.id === remembered(COLOUR_KEY)) ? remembered(COLOUR_KEY) : 'green';
+let colour = firstColour(remembered(COLOUR_KEY));
+let world = firstWorld(remembered(WORLD_KEY));
 
 // The player's state for the song shown.
 let asked = null;        // the audio asked for: { cid, from, size }
@@ -38,6 +46,8 @@ let coverAsked = null, coverUrl = null;
 
 function remembered(key) { try { return globalThis.localStorage?.getItem(key) || null; } catch { return null; } }
 function remember(key, v) { try { globalThis.localStorage?.setItem(key, v); } catch { /* this visit only */ } }
+// Every choice written together, whichever changed.
+function rememberAll() { remember(LOOK_KEY, look); remember(COLOUR_KEY, colour); remember(WORLD_KEY, world); }
 
 function el(tag, attrs = {}, ...kids) {
   const e = document.createElement(tag);
@@ -63,14 +73,29 @@ for (const l of LOOKS) {
 pick.addEventListener('change', () => setLook(pick.value));
 for (const c of SCOPE_COLOURS) {
   const b = el('button', { type: 'button', 'data-colour': c.id }, c.name);
-  b.addEventListener('click', () => { colour = c.id; remember(COLOUR_KEY, c.id); drawLookBar(); });
+  b.addEventListener('click', () => { colour = c.id; rememberAll(); drawLookBar(); });
   colourSeg.append(b);
 }
 lookBar.append(el('span', { class: 'lbl' }, 'Look:'), seg, pick, colourSeg);
 const sceneBox = el('div', { class: 'scene' });
 const canvas = el('canvas', { 'aria-hidden': 'true' });
-sceneBox.append(canvas);
+const glCanvas = el('canvas', { 'aria-hidden': 'true', class: 'gl' });
+sceneBox.append(canvas, glCanvas);
 const scene = createScene(canvas);
+const aurora = createAurora(glCanvas, canvas);
+// Under the picture while Aurora shows: its world (buttons on a computer, a menu on a phone) and its credit (R3c-12).
+const worldBar = el('div', { class: 'under' });
+const worldSeg = el('span', { class: 'seg', role: 'group', 'aria-label': 'World' });
+const worldPick = el('select', { 'aria-label': 'World' });
+for (const w of AURORA_WORLDS) {
+  const b = el('button', { type: 'button', 'data-world': w.id }, w.name);
+  b.addEventListener('click', () => setWorld(w.id));
+  worldSeg.append(b);
+  worldPick.append(el('option', { value: w.id }, w.name));
+}
+worldPick.addEventListener('change', () => setWorld(worldPick.value));
+worldBar.append(el('span', { class: 'world' }, el('span', { class: 'lbl' }, 'World:'), worldSeg, worldPick),
+  el('span', { class: 'credit' }, 'Inspired by ', el('a', { href: AURORA_CREDIT.href, target: '_blank', rel: 'noopener noreferrer' }, AURORA_CREDIT.text)));
 const card = el('div', { class: 'card-title' });
 const player = el('div', { class: 'player-box' });
 const credits = el('section', { class: 'credits', 'aria-label': 'Credits' });
@@ -82,12 +107,31 @@ function drawLookBar() {
   for (const b of colourSeg.children) b.setAttribute('aria-pressed', String(b.dataset.colour === colour));
   root.dataset.look = look;
   sceneBox.hidden = look === 'plain';
-  if (look !== 'plain') requestAnimationFrame(() => scene.resize());
+  worldBar.hidden = look !== 'aurora';
+  for (const b of worldSeg.children) b.setAttribute('aria-pressed', String(b.dataset.world === world));
+  worldPick.value = world;
+  // Aurora draws on its own WebGL canvas when it can, else on the looks' canvas (its 2D fallback).
+  const onGL = look === 'aurora' && aurora.gl;
+  glCanvas.hidden = !onGL;
+  canvas.hidden = onGL;
+  root.dataset.aurora = aurora.gl ? 'webgl' : '2d';
+  if (look !== 'plain') requestAnimationFrame(sizeScene);
 }
 function setLook(id) {
   look = id;
-  remember(LOOK_KEY, id);
+  rememberAll();
   drawLookBar();
+}
+function setWorld(id) {
+  world = id;
+  rememberAll();
+  drawLookBar();
+}
+// The picture's size; on a phone Aurora is drawn lighter (half resolution, and 30 frames a second in the loop).
+function sizeScene() {
+  scene.resize();
+  const r = sceneBox.getBoundingClientRect(), dpr = Math.min(2, globalThis.devicePixelRatio || 1);
+  aurora.resize(r.width, r.height, root.classList.contains('is-phone') ? 0.5 * dpr : dpr);
 }
 
 // ---- states without a song ----
@@ -96,11 +140,45 @@ function show(state, ...nodes) {
   root.replaceChildren(...nodes);
 }
 function drawWaiting() { show('waiting', el('p', { class: 'wait' }, 'Waiting for a song…')); }
+// Opened alone (R3c-10): what Tracks is, a still picture of the jukebox, two songs to try in Raku.
 function drawNoHost() {
+  const pic = el('canvas', { class: 'alone-pic', 'aria-hidden': 'true' });
+  const tries = el('ul', { class: 'tries' });
+  for (const t of TRY_SONGS) {
+    tries.append(el('li', {},
+      el('div', {}, el('i', {}, t.title), `, ${t.line}`),
+      el('div', { class: 'try-go' },
+        el('a', { href: rakuLink(t.uri), target: '_blank', rel: 'noopener noreferrer' }, 'Open in Raku ↗'),
+        el('code', { class: 'addr' }, t.uri),
+        el('span', { class: 'about' }, t.about))));
+  }
   show('nohost',
-    el('h1', {}, 'This tile plays songs.'),
-    el('p', {}, "Open a song's address in Raku to hear one here."),
-    el('p', { class: 'small' }, `A song is a ${TRACK} record (from the Web Tile Foundry's importer) or a ${PLYR} record (from plyr.fm), with its audio kept in its account.`));
+    pic,
+    el('h1', {}, 'Tracks'),
+    el('p', { class: 'lead' }, el('b', {}, "This is a renderer tile: it plays songs that live in people's own accounts."),
+      " It holds no music itself. Open a song's address in Raku, and Raku hands it the song's record. Tracks then plays it, with its credits, in the look you choose: a jukebox, a reel-to-reel deck, an oscilloscope, an aurora of light, or plain."),
+    el('h2', {}, 'Try one:'),
+    tries,
+    el('p', {}, "Or paste a song's address into Raku's address box."),
+    el('p', { class: 'small' }, 'Currently, it plays two kinds of song record: ', el('code', {}, TRACK), " (from the Web Tile Foundry's importer) and ",
+      el('code', {}, PLYR), ' (from plyr.fm). More about renderer tiles: ',
+      el('a', { href: RENDERERS_POST, target: '_blank', rel: 'noopener noreferrer' }, 'Renderer tiles on thunderbird.cafe ↗'), '.'),
+    el('p', { class: 'small' }, 'Aurora is inspired by ', el('a', { href: AURORA_CREDIT.href, target: '_blank', rel: 'noopener noreferrer' }, AURORA_CREDIT.text), '.'));
+  drawStill(pic);
+}
+// The jukebox standing still, in a warm moment of music (as the card pictures).
+const STILL = [0.55, 0.7, 0.85, 0.95, 1, 0.9, 0.8, 0.7, 0.85, 0.95, 0.8, 0.65, 0.55, 0.45];
+function drawStill(pic) {
+  const paint = () => {
+    const r = pic.getBoundingClientRect();
+    if (!r.width) return;
+    const sc = createScene(pic);
+    sc.resize(r.width, r.height);
+    sc.draw('jukebox', 0, { playing: false, still: true, lessMotion: true, colour: 'green', time: 0, duration: 0,
+      bands: (n) => Array.from({ length: n }, (_, i) => STILL[Math.floor((i / n) * STILL.length)]), level: () => 0 });
+  };
+  requestAnimationFrame(paint);
+  if (typeof ResizeObserver === 'function') new ResizeObserver(paint).observe(pic);
 }
 function drawNotTrack(v) {
   show('nottrack',
@@ -170,7 +248,7 @@ function drawCredits() {
 }
 
 function drawTrack() {
-  show('track', lookBar, sceneBox, card, player, credits);
+  show('track', lookBar, sceneBox, worldBar, card, player, credits);
   drawLookBar();
   drawTitle();
   drawPlayer();
@@ -284,13 +362,18 @@ function onPayload(payload) {
 }
 
 // ---- the picture loop: only while a look is showing and the tile is visible ----
-let last = performance.now();
+let last = performance.now(), auroraTime = 0, auroraLast = 0;
 function frame(t) {
   const dt = Math.min(0.1, (t - last) / 1000);
   last = t;
-  if (view && view.kind === 'track' && look !== 'plain' && root.dataset.state === 'track') {
+  if (view && view.kind === 'track' && root.dataset.state === 'track') {
     const playing = !!audio && !audio.paused;
-    scene.draw(look, dt, {
+    // Aurora keeps the song's recent past whatever the look, so switching to it shows the last seconds.
+    aurora.step(dt, listener.bands(NB, playing), playing, world);
+    auroraTime += dt * (playing ? 1 : 0.2) * (lessMotion ? 0.3 : 1);
+    if (look === 'aurora') {
+      if (!root.classList.contains('is-phone') || t - auroraLast >= 33) { auroraLast = t; aurora.draw(world, auroraTime); }
+    } else if (look !== 'plain') scene.draw(look, dt, {
       playing, lessMotion, colour,
       time: audio ? audio.currentTime : 0,
       duration: audio && Number.isFinite(audio.duration) ? audio.duration : view.duration,
@@ -304,7 +387,7 @@ requestAnimationFrame(frame);
 
 // The phone look by the tile's own width (R3c-7): the Look switch becomes a small menu.
 const narrow = () => root.classList.toggle('is-phone', root.getBoundingClientRect().width < 560);
-if (typeof ResizeObserver === 'function') new ResizeObserver(() => { narrow(); if (look !== 'plain') scene.resize(); }).observe(root);
+if (typeof ResizeObserver === 'function') new ResizeObserver(() => { narrow(); if (look !== 'plain') sizeScene(); }).observe(root);
 narrow();
 
 drawWaiting();

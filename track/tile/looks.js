@@ -1,6 +1,7 @@
 // looks.js: the pictures behind the song in the track renderer (claude/mixtape-3c-track-renderer-notes.md, R3c-2 and
-// R3c-8; drawn as approved in claude/raku-track-renderer-mockup.html). One canvas, three looks drawn on it (Plain
-// draws nothing): the Jukebox, the Reel-to-reel and the Oscilloscope. Each frame gets what the music is doing from
+// R3c-8; drawn as approved in claude/raku-track-renderer-mockup.html; the jukebox's bubbles and light arch as approved in
+// claude/raku-track-aurora-mockup.html, R3c-13). One canvas, three looks drawn on it (Plain draws nothing; Aurora is
+// aurora.js): the Jukebox, the Reel-to-reel and the Oscilloscope. Each frame gets what the music is doing from
 // track.js (the analyser's bands and levels) and draws; nothing here touches the page beyond the canvas.
 //
 //   const scene = createScene(canvas);
@@ -11,7 +12,11 @@ export function createScene(cv) {
   const g = cv.getContext('2d');
   let W = 0, H = 0;
   let spin = 0, reelL = 0, reelR = 0, needleL = 0, needleR = 0, hueDrift = 0;
-  const bubbles = Array.from({ length: 22 }, () => ({ y: Math.random(), x: Math.random(), r: 2 + Math.random() * 3, s: 0.2 + Math.random() * 0.5 }));
+  let beat = 0;                                   // the jukebox's arch: the bass, quick to rise, slower to fall (R3c-13)
+  // Each bubble tube its own 22 bubbles, moved once per frame (before Nov 20 one set was moved once per tube, so
+  // twice per frame, and both tubes showed the same pattern).
+  const makeBubbles = () => Array.from({ length: 22 }, () => ({ y: Math.random(), x: Math.random(), r: 2 + Math.random() * 3, s: 0.2 + Math.random() * 0.5 }));
+  const tubeBubbles = [makeBubbles(), makeBubbles()];
   const scopeAmp = new Array(6).fill(0);
   const scopePh = [0, 1.1, 2.3, 0.7, 1.9, 2.8];
 
@@ -40,15 +45,20 @@ export function createScene(cv) {
     const wood = g.createLinearGradient(cx - r, 0, cx + r, 0); wood.addColorStop(0, '#4a2612'); wood.addColorStop(0.5, '#8b4f24'); wood.addColorStop(1, '#4a2612');
     g.fillStyle = wood; g.beginPath(); g.moveTo(cx - r, top + ch); g.lineTo(cx - r, top + r); g.arc(cx, top + r, r, Math.PI, 0); g.lineTo(cx + r, top + ch); g.closePath(); g.fill();
     const ar = r * 0.9, aw = Math.max(8, r * 0.13);
+    // The light arch keeps its rainbow, red to magenta left to right, and every segment pulses together with the beat
+    // (R3c-13): one value, the bass (the first three bands), quick to rise and slower to fall.
+    const kick = (b[0] + b[1] + b[2]) / 3;
+    beat += (kick - beat) * Math.min(1, dt * (kick > beat ? 18 : 4));
+    if (s.still) beat = kick;                      // the card pictures: no easing in
     for (let i = 0; i < b.length; i++) {
       const a0 = Math.PI + (i / b.length) * Math.PI, a1 = Math.PI + ((i + 1) / b.length) * Math.PI;
-      const hue = (i / b.length) * 300, lit = 0.25 + b[i] * 0.75;
+      const hue = (i / b.length) * 300, lit = 0.25 + beat * 0.75;
       g.strokeStyle = `hsla(${hue},95%,${35 + lit * 30}%,${0.35 + lit * 0.65})`; g.lineWidth = aw; g.shadowColor = `hsl(${hue},100%,60%)`; g.shadowBlur = 6 + lit * 22;
       g.beginPath(); g.arc(cx, top + r, ar, a0 + 0.012, a1 - 0.012); g.stroke();
     }
     g.shadowBlur = 0;
     for (const side of [-1, 1]) {
-      const x = cx + side * ar, lit = 0.3 + (side < 0 ? b[0] : b[b.length - 1]) * 0.7;
+      const x = cx + side * ar, lit = 0.3 + beat * 0.7;          // both pillars pulse with the arch
       const pl = g.createLinearGradient(0, top + r, 0, top + ch - 10); pl.addColorStop(0, `hsla(${side < 0 ? 0 : 300},90%,60%,${lit})`); pl.addColorStop(1, `hsla(${side < 0 ? 40 : 260},90%,50%,${lit * 0.6})`);
       g.fillStyle = pl; g.fillRect(x - aw / 2, top + r, aw, ch - r - 10);
     }
@@ -73,8 +83,9 @@ export function createScene(cv) {
       tube.addColorStop(0, `hsla(${side < 0 ? 20 : 280},80%,40%,.9)`); tube.addColorStop(0.5, `hsla(${side < 0 ? 40 : 300},90%,${55 + avg * 20}%,.95)`); tube.addColorStop(1, `hsla(${side < 0 ? 20 : 280},80%,40%,.9)`);
       g.fillStyle = tube; g.fill();
       g.fillStyle = 'rgba(255,255,255,.55)';
-      for (const bb of bubbles) {
-        if (s.playing) bb.y -= dt * bb.s * (0.4 + avg * 2) * (s.lessMotion ? 0.1 : 1);
+      // very slow and steady: the same pace whatever the music does (owner, Nov 20)
+      for (const bb of tubeBubbles[side < 0 ? 0 : 1]) {
+        if (s.playing) bb.y -= dt * bb.s * 0.4 * (s.lessMotion ? 0.1 : 1);
         if (bb.y < 0) { bb.y = 1; bb.x = Math.random(); }
         g.beginPath(); g.arc(tx + (bb.x - 0.5) * (tw - 6), ty + 4 + bb.y * (th - 8), bb.r * 0.7, 0, Math.PI * 2); g.fill();
       }
@@ -195,6 +206,7 @@ export function createScene(cv) {
   return {
     resize,
     get width() { return W; },
+    get height() { return H; },
     draw(look, dt, s) {
       if (!W || !H) return;
       g.clearRect(0, 0, W, H);

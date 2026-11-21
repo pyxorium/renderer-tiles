@@ -8,8 +8,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   readTrack, readAudioAnswer, readPicture, sizeLine, firstLook, longDate, formatTime, formatSize, showOnly, safeLink,
-  TRACK, PLYR, LOOKS, AUDIO_ERRORS, BIG_SONG,
+  TRACK, PLYR, LOOKS, AUDIO_ERRORS, BIG_SONG, AURORA_WORLDS, AURORA_CREDIT, firstColour, firstWorld, rakuLink, TRY_SONGS,
 } from '../track/tile/view.js';
+import { WORLDS, createHistory, NB, NC } from '../track/tile/aurora.js';
 import { runPublish, ACCOUNT, RESERVED_KEYS } from '../scripts/publish.mjs';
 import { TRACK_TILES, ROOT } from '../scripts/tiles.mjs';
 import { createFakePds } from './fake-pds.mjs';
@@ -147,10 +148,12 @@ test('the cover\'s picture answer', () => {
 });
 
 test('the first look: the one chosen before, else Plain when the device asks for less motion, else the Jukebox (R3c-1, R3c-7)', () => {
-  assert.deepEqual(LOOKS.map((l) => l.id), ['jukebox', 'reel', 'scope', 'plain']);
+  assert.deepEqual(LOOKS.map((l) => l.id), ['jukebox', 'reel', 'scope', 'aurora', 'plain']);
+  assert.deepEqual(LOOKS.map((l) => l.name), ['Jukebox', 'Reel-to-reel', 'Oscilloscope', 'Aurora', 'Plain']);
   assert.equal(firstLook(null, false), 'jukebox');
   assert.equal(firstLook(null, true), 'plain');
   assert.equal(firstLook('scope', true), 'scope', 'a look chosen before wins');
+  assert.equal(firstLook('aurora', true), 'aurora', '...Aurora too');
   assert.equal(firstLook('disco', false), 'jukebox');
 });
 
@@ -170,7 +173,7 @@ test('the page: off the network; the data protocol from the host; it only ever a
   assert.ok(js.indexOf('addDataHandler(onPayload)') < js.indexOf('api.listen()'), 'the handler is added before listen() (data.js buffers nothing)');
   assert.deepEqual([...js.matchAll(/ask\(\{ (\w+):/g)].map((m) => m[1]).sort(), ['audio', 'picture']);
   assert.ok(!/fetch\(|XMLHttpRequest|WebSocket/.test(js), 'no network of its own');
-  for (const f of ['track.js', 'view.js', 'looks.js']) assert.ok(!/innerHTML/.test(readFileSync(join(ROOT, 'track', 'tile', f), 'utf8')), `${f}: drawn with DOM calls only`);
+  for (const f of ['track.js', 'view.js', 'looks.js', 'aurora.js']) assert.ok(!/innerHTML/.test(readFileSync(join(ROOT, 'track', 'tile', f), 'utf8')), `${f}: drawn with DOM calls only`);
   for (const f of [...TRACK_TILES['track-renderer'].files, ...TRACK_TILES['track-renderer'].cards]) assert.ok(readFileSync(join(ROOT, 'track', 'tile', f)).length > 0, f);
 });
 
@@ -192,7 +195,7 @@ test('--track: one tile from thunderbird.cafe, with its card pictures; nothing e
   assert.match(t.uri, new RegExp(`^at://${ACCOUNT}/ing.dasl.masl/`));
   const value = pds.records.get(`ing.dasl.masl/${t.uri.split('/').pop()}`).value;
   assert.equal(value.tile.name, 'Tracks');
-  assert.deepEqual(Object.keys(value.tile.resources).sort(), ['/', '/banner.png', '/icon.png', '/looks.js', '/track.css', '/track.js', '/view.js']);
+  assert.deepEqual(Object.keys(value.tile.resources).sort(), ['/', '/aurora.js', '/banner.png', '/icon.png', '/looks.js', '/track.css', '/track.js', '/view.js']);
   assert.deepEqual(value.tile.icons, [{ src: '/icon.png' }]);
   assert.deepEqual(value.tile.screenshots, [{ src: '/banner.png' }]);
   assert.deepEqual(Object.keys(published).sort(), ['accounts', 'place-renderer', 'track-renderer']);
@@ -200,4 +203,61 @@ test('--track: one tile from thunderbird.cafe, with its card pictures; nothing e
   assert.ok(!pds.calls.some((c) => /putRecord/.test(c)), 'no place written');
   assert.ok(logs.some((l) => l.includes(`RENDERERS ('${TRACK}', '${PLYR}'): uri '${t.uri}', cid '${t.cid}'`)), 'it prints the pin for Raku, naming both kinds');
   assert.ok(!logs.some((l) => /signpost|lexicon/i.test(l)), 'nothing about ways');
+});
+
+// ---------- the settling round (Nov 20): Aurora, the remembered choices, opened alone ----------
+
+test('Aurora (R3c-12): three worlds, Tide first, each with its own settings and palette; the credit', () => {
+  assert.deepEqual(AURORA_WORLDS.map((w) => w.id), ['tide', 'bloom', 'prism']);
+  assert.deepEqual(AURORA_WORLDS.map((w) => w.name), ['Tide', 'Bloom', 'Prism']);
+  assert.deepEqual(Object.keys(WORLDS), ['tide', 'bloom', 'prism']);
+  assert.deepEqual([WORLDS.tide.mem, WORLDS.bloom.mem, WORLDS.prism.mem], [18, 24, 16], 'memory in seconds');
+  assert.deepEqual([WORLDS.tide.scan, WORLDS.bloom.scan, WORLDS.prism.scan], [1, 0, 1], 'scan lines');
+  assert.deepEqual(WORLDS.tide.pal, ['#3fb8b0', '#c9d48a', '#b48fd0', '#e48a7c']);
+  assert.deepEqual(WORLDS.bloom.pal, ['#8f7ad8', '#c7b8f0', '#6f8fc8', '#b3cf86']);
+  assert.deepEqual(WORLDS.prism.pal, ['#d9a0b8', '#5f7f9c', '#9fc8c8', '#e7b8a0']);
+  assert.deepEqual(AURORA_CREDIT, { text: 'Spectra, Shimmer Math Labs ↗', href: 'https://shimmermathlabs.com/spectra.html' });
+});
+
+test('Aurora\'s history: the newest column follows the music; a new one every memory / 250 s while playing; paused with the song', () => {
+  const h = createHistory();
+  assert.equal(h.data.length, NB * NC);
+  const loud = new Array(NB).fill(1);
+  for (let i = 0; i < 30; i++) h.step(0.1, loud, true, 18);             // 3 s at 18 s memory: 3 / 0.072 ≈ 41 columns
+  assert.ok(h.head >= 40 && h.head <= 42, `head ${h.head}`);
+  assert.ok(h.live[0] > 0.95 && h.level() > 0.95, 'eased up to the music');
+  assert.ok(h.at(0, 0.5) > 0.95, 'the newest moment is loud');
+  assert.equal(h.at(0.9, 0.5), 0, 'long ago (before the song) was silent');
+  const head = h.head;
+  for (let i = 0; i < 30; i++) h.step(0.1, loud, false, 18);
+  assert.equal(h.head, head, 'paused: no new columns');
+  assert.ok(h.level() < 0.01, 'and it settles to quiet');
+});
+
+test('the scope\'s colour and Aurora\'s world, as remembered, else the first of each', () => {
+  assert.equal(firstColour('rainbow'), 'rainbow');
+  assert.equal(firstColour(null), 'green');
+  assert.equal(firstColour('plaid'), 'green');
+  assert.equal(firstWorld('prism'), 'prism');
+  assert.equal(firstWorld(null), 'tide');
+  assert.equal(firstWorld('ocean'), 'tide');
+  const js = readFileSync(join(ROOT, 'track', 'tile', 'track.js'), 'utf8');
+  for (const k of ['tracks.look', 'tracks.scopeColour', 'tracks.world']) assert.ok(js.includes(`'${k}'`), k);
+  assert.ok(!/remember\((LOOK|COLOUR|WORLD)_KEY/.test(js.replace(/function rememberAll[^\n]*/, '')), 'every change writes all three together (rememberAll)');
+});
+
+test('opened alone (R3c-10): two songs to try, each with its Raku link and its address', () => {
+  assert.deepEqual(TRY_SONGS.map((t) => t.uri), ['at://pyxorium.com/cafe.thunderbird.audio.track/3n2cwy6kxit2f', 'at://pyxorium.com/fm.plyr.track/3mh6rgj3nef22']);
+  assert.deepEqual(TRY_SONGS.map((t) => t.title), ['Mossy Cow', 'Drop Top']);
+  assert.equal(rakuLink(TRY_SONGS[0].uri), 'https://raku.lexicographer.space/#t=at%3A%2F%2Fpyxorium.com%2Fcafe.thunderbird.audio.track%2F3n2cwy6kxit2f&a=0');
+});
+
+test('the jukebox (R3c-13 and the bubbles): every arch segment and both pillars follow one beat; each tube its own steady bubbles', () => {
+  const js = readFileSync(join(ROOT, 'track', 'tile', 'looks.js'), 'utf8');
+  assert.match(js, /const kick = \(b\[0\] \+ b\[1\] \+ b\[2\]\) \/ 3;/);
+  assert.match(js, /beat \+= \(kick - beat\) \* Math\.min\(1, dt \* \(kick > beat \? 18 : 4\)\)/);
+  assert.match(js, /lit = 0\.25 \+ beat \* 0\.75/);
+  assert.match(js, /lit = 0\.3 \+ beat \* 0\.7/);
+  assert.match(js, /tubeBubbles\[side < 0 \? 0 : 1\]/);
+  assert.match(js, /bb\.y -= dt \* bb\.s \* 0\.4 \* \(s\.lessMotion \? 0\.1 : 1\)/, 'very slow and steady: no swing with the music');
 });

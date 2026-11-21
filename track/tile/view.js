@@ -22,8 +22,12 @@ export const LOOKS = Object.freeze([
   { id: 'jukebox', name: 'Jukebox' },
   { id: 'reel', name: 'Reel-to-reel' },
   { id: 'scope', name: 'Oscilloscope' },
+  { id: 'aurora', name: 'Aurora' },
   { id: 'plain', name: 'Plain' },
 ]);
+// Aurora's worlds (R3c-12), the first one the starting world.
+export const AURORA_WORLDS = Object.freeze([{ id: 'tide', name: 'Tide' }, { id: 'bloom', name: 'Bloom' }, { id: 'prism', name: 'Prism' }]);
+export const AURORA_CREDIT = Object.freeze({ text: 'Spectra, Shimmer Math Labs ↗', href: 'https://shimmermathlabs.com/spectra.html' });
 export const SCOPE_COLOURS = Object.freeze([{ id: 'green', name: 'Green' }, { id: 'rainbow', name: 'Rainbow' }]);
 export const BIG_SONG = 30 * 1024 * 1024;         // above this, the Play line says "best on Wi-Fi" (R3c-7)
 export const AUDIO_TYPES = ['audio/mpeg', 'audio/webm', 'audio/ogg', 'audio/flac', 'audio/wav', 'audio/mp4'];
@@ -197,3 +201,18 @@ export function firstLook(remembered, lessMotion) {
   if (LOOKS.some((l) => l.id === remembered)) return remembered;
   return lessMotion ? 'plain' : 'jukebox';
 }
+
+// The scope's colour and Aurora's world, as remembered (else the first of each).
+export function firstColour(remembered) { return SCOPE_COLOURS.some((c) => c.id === remembered) ? remembered : SCOPE_COLOURS[0].id; }
+export function firstWorld(remembered) { return AURORA_WORLDS.some((w) => w.id === remembered) ? remembered : AURORA_WORLDS[0].id; }
+
+// ---- opened alone (R3c-10): no host, or a host that sends no record ----
+// Raku's link for an address: the address percent-encoded, opened as its own tab.
+export function rakuLink(uri) { return `https://raku.lexicographer.space/#t=${encodeURIComponent(uri)}&a=0`; }
+export const TRY_SONGS = Object.freeze([
+  { title: 'Mossy Cow', line: 'Yonder Mountain String Band, live at the Fillmore, 2002',
+    uri: 'at://pyxorium.com/cafe.thunderbird.audio.track/3n2cwy6kxit2f', about: '4:45 · 3.37 MB · WebM' },
+  { title: 'Drop Top', line: "Parlor Greens at Jam Cruise, 2026 (a plyr.fm upload, its audio now on pyxorium.com's own server)",
+    uri: 'at://pyxorium.com/fm.plyr.track/3mh6rgj3nef22', about: '4:40' },
+]);
+export const RENDERERS_POST = 'https://thunderbird.cafe/blog/renderer-tiles';

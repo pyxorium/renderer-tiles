@@ -59,14 +59,15 @@ export const SIGNPOST_TILES = {
 // The track renderer (claude/mixtape-3c-track-renderer-notes.md, R3c-1 to R3c-9): one song record, ours
 // (cafe.thunderbird.audio.track, from the Foundry's importer) or plyr.fm's (fm.plyr.track), with its credits, played in
 // the look the listener picks. It asks its host for the song's audio when Play is pressed ({ audio }, R3c-4). Raku pins
-// it for both kinds. Published on its own with publish.mjs --track.
+// it for both kinds. Published on its own with publish.mjs --track. Since Nov 20 (the settling round) a fifth look,
+// Aurora (aurora.js, R3c-12).
 export const TRACK_TILES = {
   'track-renderer': {
     name: 'Tracks',
-    description: "Plays a song (a cafe.thunderbird.audio.track or fm.plyr.track record) with its credits, in the look you pick: a jukebox, a reel-to-reel deck, an oscilloscope, or plain. The song is fetched from its account when you press play. Raku opens this when you open a song's address.",
+    description: "Plays a song (a cafe.thunderbird.audio.track or fm.plyr.track record) with its credits, in the look you pick: a jukebox, a reel-to-reel deck, an oscilloscope, an aurora of light, or plain. The song is fetched from its account when you press play. Raku opens this when you open a song's address.",
     sizing: { width: 640, height: 480 },
     folder: 'track/tile',
-    files: ['index.html', 'track.css', 'track.js', 'view.js', 'looks.js'],
+    files: ['index.html', 'track.css', 'track.js', 'view.js', 'looks.js', 'aurora.js'],
     cards: ['icon.png', 'banner.png'],
     icon: '/icon.png',
     screenshot: '/banner.png',

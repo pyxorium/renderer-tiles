@@ -1,6 +1,8 @@
 /* track.css: the track renderer ("Tracks", claude/mixtape-3c-track-renderer-notes.md), as approved in
-   claude/raku-track-renderer-mockup.html. The page in the travel pages' cream (like Places and Signposts); each look
-   gives the title card its own style: the jukebox's red-bordered card, the reel's typed label, the scope's readout. */
+   claude/raku-track-renderer-mockup.html, and Aurora as in claude/raku-track-aurora-mockup.html. The page in the travel
+   pages' cream (the :root line is the same as Places' and Signposts', and so as maze-tiles' site\way.css:
+   test/track.test.mjs checks); each look gives the title card its own style: the jukebox's red-bordered card, the
+   reel's typed label, the scope's readout, Aurora's night navy with an iridescent edge. */
 :root { --bg: #eee7d7; --ink: #2f2a26; --soft: #6b6157; --card: #fbf8f1; --line: #d8ccb2; --accent: #4260b0; }
 html, body { margin: 0; background: var(--bg); color: var(--ink); min-height: 100%; }
 body { font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
@@ -15,6 +17,19 @@ body { font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
 .track[data-state="nohost"] h1, .track[data-state="nottrack"] h1 { font-size: 30px; margin-bottom: 6px; }
 .track .small { margin-top: 14px; font-size: 14px; }
 
+/* Opened alone (R3c-10): the jukebox standing still, what Tracks is, two songs to try in Raku. */
+.track[data-state="nohost"] { padding-top: 22px; }
+.track .alone-pic { display: block; width: 100%; max-width: 420px; height: 230px; margin: 0 auto 18px; border-radius: 14px; background: #1b1b1f; }
+.track.is-phone .alone-pic { height: 190px; }
+.track .lead { font-size: 16px; }
+.track[data-state="nohost"] h2 { font-size: 16px; margin: 18px 0 6px; }
+.track .tries { margin: 0 0 14px; padding-left: 20px; }
+.track .tries li { margin: 0 0 12px; }
+.track .try-go { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 4px; font-size: 14px; }
+.track .try-go a { font-weight: 600; }
+.track .addr { display: inline-block; max-width: 100%; padding: 2px 7px; border-radius: 6px; background: var(--card); border: 1px solid var(--line); font-size: 12.5px; overflow-wrap: anywhere; user-select: all; -webkit-user-select: all; }
+.track .about { color: var(--soft); font-size: 13px; }
+
 /* The look switch: buttons on a computer, a small menu on a phone; the scope's colour beside it. */
 .looks { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 13px; color: var(--soft); }
 .looks .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--card); }
@@ -28,7 +43,20 @@ body { font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
 
 .scene { position: relative; width: 100%; height: 340px; border-radius: 14px; overflow: hidden; background: #1b1b1f; }
 .track.is-phone .scene { height: 270px; }
-.scene canvas { display: block; width: 100%; height: 100%; }
+.scene canvas { display: block; width: 100%; height: 100%; position: absolute; inset: 0; }
+
+/* Under Aurora's picture: its world and its credit (R3c-12); buttons on a computer, a menu on a phone. */
+.under { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; margin-top: 8px; font-size: 13px; color: var(--soft); }
+.under .world { display: inline-flex; align-items: center; gap: 8px; }
+.under .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--card); }
+.under .seg button { border: 0; background: none; padding: 4px 11px; font: inherit; font-size: 13px; color: var(--soft); cursor: pointer; }
+.under .seg button + button { border-left: 1px solid var(--line); }
+.under .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; font-weight: 600; }
+.under .seg button:focus-visible, .under select:focus-visible { outline: 3px solid #ffd28a; outline-offset: 1px; }
+.under select { font: inherit; font-size: 13px; padding: 3px 6px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+.track:not(.is-phone) .under select { display: none; }
+.track.is-phone .under .seg { display: none; }
+.under .credit a { color: inherit; }
 
 /* The title card, styled per look. */
 .card-title { margin: 12px auto 0; padding: 12px 16px; text-align: center; border-radius: 10px; max-width: 640px; }
@@ -43,6 +71,8 @@ body { font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
 .track[data-look="scope"] .card-title { background: #0b130d; border: 1px solid #1f3a26; color: #7dff9a; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; text-align: left; }
 .track[data-look="scope"] .card-title .where, .track[data-look="scope"] .card-title .which { color: #4fbf68; }
 .track[data-look="scope"] .card-title h1 { font-size: 19px; text-shadow: 0 0 8px rgba(125,255,154,.6); }
+.track[data-look="aurora"] .card-title { background: #0e1626; color: #e7ecf5; border: 1px solid transparent; background-image: linear-gradient(#0e1626, #0e1626), linear-gradient(100deg, #3fb8b0, #b48fd0, #e48a7c); background-origin: border-box; background-clip: padding-box, border-box; }
+.track[data-look="aurora"] .card-title .where, .track[data-look="aurora"] .card-title .which { color: #9fb0c8; }
 .track[data-look="plain"] .card-title { text-align: left; padding: 6px 0 0; max-width: none; margin-top: 0; }
 .track[data-look="plain"] .card-title h1 { font-size: 28px; }
 .track.is-phone[data-look="plain"] .card-title h1 { font-size: 23px; }

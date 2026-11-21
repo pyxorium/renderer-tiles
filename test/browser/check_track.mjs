@@ -2,8 +2,10 @@
 // its stand-in host (track\dev\serve.mjs: the tile in a frame, answering "ready" with a sample song record over the
 // tiles spec's data protocol, as Raku does, and the tile's audio request with progress and the bytes of a short synth
 // loop): the title card and credits for each kind of song, nothing fetched before Play, the song fetched, played and
-// sought, the four looks and the scope's colour (the picture moving with the music), the look remembered, the host's
-// refusals, no answer, the link-only plyr.fm song, a cover, not a song, opened alone, phone width, no errors.
+// sought, the five looks, the scope's colour and Aurora's three worlds (the picture moving with the music; Aurora with
+// WebGL, and its 2D fallback in a browser without WebGL), the choices remembered, the host's refusals, no answer, the
+// link-only plyr.fm song, a cover, not a song, opened alone (what Tracks is, two songs to try in Raku), phone width,
+// no errors.
 // Raku's own check (C:\thunderbird-cafe\raku\test\browser\check_renderer.py) runs it through the real loader.
 // Run in the build chat: node test/browser/check_track.mjs [folder for screenshots]   (needs Playwright)
 import { createRequire } from 'node:module';
@@ -43,7 +45,10 @@ try {
   const text = (sel) => tile.locator(sel).first().innerText();
   const asked = () => page.evaluate(() => window.__asked.map((p) => Object.keys(p)[0]));
   const pick = async (attr, v) => { await page.click(`[data-${attr}="${v}"]`); };
-  const canvasInk = () => frame().evaluate(() => { const c = document.querySelector('.scene canvas'); const g = c.getContext('2d'); const d = g.getImageData(0, 0, c.width, c.height).data; let s = 0; for (let i = 0; i < d.length; i += 4 * 97) s += d[i] + d[i + 1] * 3 + d[i + 2] * 7; return s; });
+  const canvasInk = (sel = '.scene canvas') => frame().evaluate((sel) => { const c = document.querySelector(sel); const g = c.getContext('2d'); const d = g.getImageData(0, 0, c.width, c.height).data; let s = 0; for (let i = 0; i < d.length; i += 4 * 97) s += d[i] + d[i + 1] * 3 + d[i + 2] * 7; return s; }, sel);
+  // Aurora's WebGL canvas, copied onto a 2D one to read it (it keeps its drawing: preserveDrawingBuffer)
+  const glInk = () => frame().evaluate(() => { const c = document.querySelector('.scene canvas.gl'); const t = document.createElement('canvas'); t.width = c.width; t.height = c.height; const g = t.getContext('2d'); g.drawImage(c, 0, 0); const d = g.getImageData(0, 0, t.width, t.height).data; let s = 0; for (let i = 0; i < d.length; i += 4 * 97) s += d[i] + d[i + 1] * 3 + d[i + 2] * 7; return s; });
+  const pressed = async (sel) => (await tile.locator(sel).getAttribute('aria-pressed')) === 'true';
 
   // An Archive song
   check('the song: drawn once the host answers "ready"', await until(async () => (await state()) === 'track'));
@@ -54,7 +59,9 @@ try {
   check('...the Archive and policy links, opening in a new window', (await tile.locator('.credits .links a').count()) === 2 && (await tile.locator('.credits .links a').first().getAttribute('target')) === '_blank'
     && (await tile.locator('.credits .links a').first().getAttribute('rel')) === 'noopener noreferrer');
   check('...notes folded, tags, "Shared by @pyxorium.com"', !(await tile.locator('.credits .notes').isVisible()) && (await tile.locator('.credits .tags span').count()) === 3 && (await text('.credits .by')) === 'Shared by @pyxorium.com');
-  check('...the Jukebox first, its look switch with four looks', (await tile.locator('#track').getAttribute('data-look')) === 'jukebox' && (await tile.locator('.looks .seg:not(.colours) button').count()) === 4);
+  check('...the Jukebox first, its look switch with five looks', (await tile.locator('#track').getAttribute('data-look')) === 'jukebox'
+    && JSON.stringify(await tile.locator('.looks .seg:not(.colours) button').allInnerTexts()) === JSON.stringify(['Jukebox', 'Reel-to-reel', 'Oscilloscope', 'Aurora', 'Plain']));
+  check('...Aurora\'s world and credit hidden on the Jukebox', !(await tile.locator('.under').isVisible()));
   check('...the scope\'s colour hidden on the Jukebox', !(await tile.locator('.looks .colours').isVisible()));
   check('...the Play line says the size, nothing fetched yet', (await text('.status')) === '0.3 MB · fetched when you press play' && !(await asked()).includes('audio'), await text('.status'));
   check('...the seek bar waits for the song', await tile.locator('.seek input').isDisabled());
@@ -76,10 +83,24 @@ try {
   check('...asked once for the song, nothing else', JSON.stringify(await asked()) === '["audio"]', JSON.stringify(await asked()));
 
   // Looks
-  for (const look of ['reel', 'scope', 'plain']) {
+  for (const look of ['reel', 'scope', 'aurora', 'plain']) {
     await tile.locator(`.looks [data-look="${look}"]`).click();
     check(`the ${look} look: chosen, music carries on`, (await tile.locator('#track').getAttribute('data-look')) === look && (await tile.locator('.play').getAttribute('aria-label')) === 'Pause');
-    if (look !== 'plain') { const b1 = await canvasInk(); await sleep(300); check(`...it moves with the music`, Math.abs((await canvasInk()) - b1) > 0); await page.screenshot({ path: path.join(SHOTS, `track-${look}.png`) }); }
+    if (look !== 'plain' && look !== 'aurora') { const b1 = await canvasInk(); await sleep(300); check(`...it moves with the music`, Math.abs((await canvasInk()) - b1) > 0); await page.screenshot({ path: path.join(SHOTS, `track-${look}.png`) }); }
+    if (look === 'aurora') {
+      check('...drawn with WebGL inside the tile, on its own canvas', (await tile.locator('#track').getAttribute('data-aurora')) === 'webgl' && await tile.locator('.scene canvas.gl').isVisible() && !(await tile.locator('.scene canvas:not(.gl)').isVisible()));
+      check('...its world under the picture: Tide first', await tile.locator('.under .seg').isVisible() && JSON.stringify(await tile.locator('.under .seg button').allInnerTexts()) === JSON.stringify(['Tide', 'Bloom', 'Prism']) && await pressed('[data-world="tide"]'));
+      check('...the credit: "Inspired by Spectra, Shimmer Math Labs ↗", in a new window', (await text('.under .credit')) === 'Inspired by Spectra, Shimmer Math Labs ↗'
+        && (await tile.locator('.under .credit a').getAttribute('href')) === 'https://shimmermathlabs.com/spectra.html' && (await tile.locator('.under .credit a').getAttribute('target')) === '_blank');
+      check('...Aurora\'s title card: night navy', await tile.locator('.card-title').evaluate((e) => getComputedStyle(e).backgroundColor === 'rgb(14, 22, 38)'));
+      for (const w of ['tide', 'bloom', 'prism']) {
+        if (w !== 'tide') await tile.locator(`.under [data-world="${w}"]`).click();
+        await sleep(250);
+        const g1 = await glInk(); await sleep(400); const g2 = await glInk();
+        check(`...${w}: chosen, drawn (not blank) and moving with the music`, await pressed(`[data-world="${w}"]`) && g1 > 0 && Math.abs(g2 - g1) > 0, `${g1} ${g2}`);
+        await page.screenshot({ path: path.join(SHOTS, `track-aurora-${w}.png`) });
+      }
+    }
     if (look === 'scope') {
       check('...the scope\'s colour shows: Green first', await tile.locator('.looks .colours').isVisible() && (await tile.locator('[data-colour="green"]').getAttribute('aria-pressed')) === 'true');
       await tile.locator('[data-colour="rainbow"]').click();
@@ -101,6 +122,14 @@ try {
   await tile.locator('.looks [data-look="scope"]').click();
   await pick('s', 'archive');
   check('...and the scope\'s colour remembered too', await until(async () => (await tile.locator('#track').getAttribute('data-look')) === 'scope' && (await tile.locator('[data-colour="rainbow"]').getAttribute('aria-pressed')) === 'true'));
+  check('...all three choices in the tile\'s storage', JSON.stringify(await frame().evaluate(() => ['tracks.look', 'tracks.scopeColour', 'tracks.world'].map((k) => localStorage.getItem(k)))) === '["scope","rainbow","prism"]');
+  await tile.locator('.looks [data-look="aurora"]').click();
+  await pick('s', 'plyr');
+  check('...Aurora and its world (Prism, chosen before) come back on the next load', await until(async () => (await tile.locator('#track').getAttribute('data-look')) === 'aurora' && await pressed('[data-world="prism"]')));
+  await tile.locator('.under [data-world="bloom"]').click();
+  await pick('s', 'archive');
+  check('...a world changed later comes back too (Bloom), the colour kept (Rainbow)', await until(async () => await pressed('[data-world="bloom"]'))
+    && JSON.stringify(await frame().evaluate(() => ['tracks.look', 'tracks.scopeColour', 'tracks.world'].map((k) => localStorage.getItem(k)))) === '["aurora","rainbow","bloom"]');
   await tile.locator('.looks [data-look="jukebox"]').click();
 
   // The old plyr.fm song: link only
@@ -143,12 +172,18 @@ try {
   await pick('s', 'like');
   check('not a song: says so, and names the kind', await until(async () => (await state()) === 'nottrack') && (await text('#track p')).includes('app.bsky.feed.like'));
   await pick('s', 'none');
-  check('no record at all: "This tile plays songs." after a few seconds', await until(async () => (await state()) === 'nohost', 6000));
+  check('no record at all: what Tracks is, after a few seconds', await until(async () => (await state()) === 'nohost', 6000) && (await text('#track h1')) === 'Tracks');
 
   // Phone
   await pick('s', 'archive'); await pick('w', 'phone');
   await until(async () => (await state()) === 'track');
   check('phone: the look switch is a small menu', await until(async () => (await tile.locator('.looks select').isVisible()) && !(await tile.locator('.looks .seg:not(.colours)').isVisible())));
+  await tile.locator('.looks select').selectOption('aurora');
+  check('...Aurora\'s world a small menu too', await until(async () => (await tile.locator('.under select').isVisible()) && !(await tile.locator('.under .seg').isVisible())));
+  await tile.locator('.under select').selectOption('tide');
+  check('...choosing a world from it', await pressed('[data-world="tide"]'));
+  check('...drawn lighter: half resolution', await frame().evaluate(() => { const c = document.querySelector('.scene canvas.gl'); return Math.abs(c.width - c.getBoundingClientRect().width * 0.5 * Math.min(2, devicePixelRatio)) <= 1; }));
+  await page.screenshot({ path: path.join(SHOTS, 'track-phone-aurora.png'), fullPage: true });
   await tile.locator('.looks select').selectOption('reel');
   check('...choosing from it changes the look', (await tile.locator('#track').getAttribute('data-look')) === 'reel');
   check('...the credits stack (label above value)', await tile.locator('.credits dl').evaluate((d) => getComputedStyle(d).gridTemplateColumns.split(' ').length === 1));
@@ -165,16 +200,58 @@ try {
   check('a device asking for less motion: opens on Plain', await until(async () => (await t2.locator('#track').getAttribute('data-look')) === 'plain'));
   await rm.close();
 
-  // Opened alone (no host at all): data.js missing
+  // Opened alone (no host at all): data.js missing (R3c-10)
   const alone = await ctx.newPage();
+  alone.on('pageerror', (e) => errors.push(String(e)));
   await alone.route('**/.well-known/web-tiles/data.js', (r) => r.fulfill({ status: 404, body: '' }));
   await alone.goto(`${HOST}tile/index.html`);
-  check('opened alone (no data.js): "This tile plays songs."', await until(async () => (await alone.locator('#track').getAttribute('data-state')) === 'nohost'));
+  check('opened alone (no data.js): what Tracks is', await until(async () => (await alone.locator('#track').getAttribute('data-state')) === 'nohost') && (await alone.locator('h1').innerText()) === 'Tracks'
+    && (await alone.locator('.lead').innerText()).startsWith("This is a renderer tile: it plays songs that live in people's own accounts.")
+    && (await alone.locator('.lead').innerText()).includes('a jukebox, a reel-to-reel deck, an oscilloscope, an aurora of light, or plain.'));
+  const links = await alone.locator('.tries a').evaluateAll((as) => as.map((a) => [a.textContent, a.href, a.target]));
+  check('...two songs to try, each "Open in Raku ↗" in a new window', JSON.stringify(links) === JSON.stringify([
+    ['Open in Raku ↗', 'https://raku.lexicographer.space/#t=at%3A%2F%2Fpyxorium.com%2Fcafe.thunderbird.audio.track%2F3n2cwy6kxit2f&a=0', '_blank'],
+    ['Open in Raku ↗', 'https://raku.lexicographer.space/#t=at%3A%2F%2Fpyxorium.com%2Ffm.plyr.track%2F3mh6rgj3nef22&a=0', '_blank']]), JSON.stringify(links));
+  check('...each address in a box to select and copy', JSON.stringify(await alone.locator('.tries .addr').allInnerTexts()) === JSON.stringify(['at://pyxorium.com/cafe.thunderbird.audio.track/3n2cwy6kxit2f', 'at://pyxorium.com/fm.plyr.track/3mh6rgj3nef22'])
+    && (await alone.locator('.tries .addr').first().evaluate((e) => getComputedStyle(e).userSelect)) === 'all');
+  check('...the two kinds, the Renderer tiles post, Aurora\'s credit', (await alone.locator('#track').innerText()).includes("Or paste a song's address into Raku's address box.")
+    && (await alone.locator('a[href="https://thunderbird.cafe/blog/renderer-tiles"]').count()) === 1 && (await alone.locator('a[href="https://shimmermathlabs.com/spectra.html"]').count()) === 1);
+  check('...the jukebox standing still above the words', await until(() => alone.evaluate(() => { const c = document.querySelector('.alone-pic'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 4 * 53) n += d[i] > 150 ? 1 : 0; return c.width > 100 && n > 20; })));
+  await alone.screenshot({ path: path.join(SHOTS, 'track-alone.png'), fullPage: true });
+  await alone.setViewportSize({ width: 390, height: 900 });
+  check('...at phone width nothing spills sideways', await until(() => alone.evaluate(() => [...document.querySelectorAll('#track *')].every((e) => e.getBoundingClientRect().right <= innerWidth + 1))));
+  await alone.screenshot({ path: path.join(SHOTS, 'track-alone-phone.png'), fullPage: true });
   await alone.close();
 
   check('no errors on the page', errors.length === 0, errors.join(' | '));
 } finally {
   await browser.close();
+}
+
+// A browser without WebGL: Aurora draws with its 2D fallback
+const noGL = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', '--disable-webgl', '--disable-3d-apis'] });
+try {
+  const page = await noGL.newPage({ viewport: { width: 1200, height: 1100 } });
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  await page.goto(HOST);
+  const tile = page.frameLocator('#f');
+  const frame = () => page.frame({ url: /\/tile\/index\.html/ });
+  await until(async () => (await tile.locator('#track').getAttribute('data-state')) === 'track');
+  await tile.locator('.looks [data-look="aurora"]').click();
+  check('no WebGL: Aurora uses its 2D fallback on the looks\' canvas', (await tile.locator('#track').getAttribute('data-aurora')) === '2d' && await tile.locator('.scene canvas:not(.gl)').isVisible() && !(await tile.locator('.scene canvas.gl').isVisible()));
+  await tile.locator('.play').click();
+  await until(async () => (await tile.locator('.play').getAttribute('aria-label')) === 'Pause');
+  const ink = () => frame().evaluate(() => { const c = document.querySelector('.scene canvas:not(.gl)'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let s = 0; for (let i = 0; i < d.length; i += 4 * 97) s += d[i] + d[i + 1] * 3 + d[i + 2] * 7; return s; });
+  for (const w of ['tide', 'bloom', 'prism']) {
+    await tile.locator(`.under [data-world="${w}"]`).click();
+    await sleep(500); const a = await ink(); await sleep(400); const b = await ink();
+    check(`...${w}: drawn and moving`, a > 0 && Math.abs(b - a) > 0, `${a} ${b}`);
+    await page.screenshot({ path: path.join(SHOTS, `track-aurora-2d-${w}.png`) });
+  }
+  check('...no errors', errors.length === 0, errors.join(' | '));
+} finally {
+  await noGL.close();
   server.kill();
 }
 console.log(`\n${pass} pass, ${fail} fail`);

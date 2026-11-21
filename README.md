@@ -160,10 +160,21 @@ a song's own address: one of ours (`cafe.thunderbird.audio.track`, from the Web 
 song (`fm.plyr.track`). Plan: claude/mixtape-3c-track-renderer-notes.md in the Foundry project (R3c-1 to R3c-9), with
 its approved mockup claude/raku-track-renderer-mockup.html. It lived in maze-tiles until Nov 20 (R3c-5).
 
-- **The looks (R3c-1, R3c-2, R3c-8):** Jukebox (the first look), Reel-to-reel, Oscilloscope (a calm braid with a
-  glow between its strands, green or rainbow) and Plain, switched on the tile (a small menu on phones); the music
-  carries on across a switch. The look and the scope's colour are remembered in the tile's own storage when the
-  browser keeps it. A device that asks for less motion opens on Plain. Drawing: `track\tile\looks.js`.
+- **The looks (R3c-1, R3c-2, R3c-8, R3c-12):** Jukebox (the first look), Reel-to-reel, Oscilloscope (a calm braid
+  with a glow between its strands, green or rainbow), Aurora and Plain, switched on the tile (a small menu on phones);
+  the music carries on across a switch. The look, the scope's colour and Aurora's world are remembered in the tile's
+  own storage when the browser keeps it (all three written together on every change). A device that asks for less
+  motion opens on Plain (a look chosen before still wins). Drawing: `track\tile\looks.js`, and `aurora.js` for Aurora.
+- **The jukebox (Nov 20, R3c-13):** the light arch keeps its rainbow, red to magenta, and all 14 segments and both
+  pillars pulse together with the beat (the bass, quick to rise, slower to fall); each bubble tube has its own 22
+  bubbles, rising very slowly and steadily, whatever the music does.
+- **Aurora (Nov 20, R3c-12):** our own drawing, inspired by Spectra (Shimmer Math Labs,
+  https://shimmermathlabs.com/spectra.html; credited under the look and on the "opened alone" screen; no code of
+  theirs). Three worlds, chosen under the picture: **Tide** (the song's recent past as diagonal ribbons drifting left),
+  **Bloom** (rings, bass in the centre, rippling outward) and **Prism** (mirrored rays, turning slowly); each brings its
+  own tuned colours and settings, Tide first. The music is kept as 64 bands × 256 moments of spectrum history. Drawn
+  with WebGL on its own canvas (one small shader per world), or a 2D fallback on the looks' canvas when the browser has
+  no WebGL; on a phone at half resolution and 30 frames a second. Its title card is night navy with an iridescent edge.
 - **What it shows (R3c-3, R3c-6):** the title card (title, band, "venue, place · date", "Set 1 · track 7 · 7:17"),
   the player, and a credits card (band, where, when, set, taper, source; the Archive and policy links; notes folded;
   tags; "Shared by @handle"). A plyr.fm song: "Uploaded through plyr.fm" and "Listen on plyr.fm ↗"; an old one whose
@@ -174,10 +185,15 @@ its approved mockup claude/raku-track-renderer-mockup.html. It lived in maze-til
   always works. Raku fetches only the record's own `audioBlob`, from its account's server, at most 100 MB, audio by
   its bytes, checked against the record's CID. A cover (`imageBlob`) comes through `{ picture }`, as Places' card.
   It only ever sends `audio` and `picture`.
+- **Opened alone (R3c-10):** with no host, or a host that sends no record within 3 s (webtil.es, a gallery, its own
+  address in Raku), it says what Tracks is under a still picture of the jukebox, with two songs to try ("Open in Raku
+  ↗", each address in a box to select and copy), the two kinds of song record, a link to the *Renderer tiles* post and
+  Aurora's credit.
 - **The look of the page:** the travel pages' cream; `track\tile\track.css`'s `:root` line is the same as
   `place\tile\place.css`'s (`test\track.test.mjs` checks).
-- **The card pictures:** the jukebox, drawn by the tile's own `looks.js`. To redraw: `npm run dev-track`, open
-  http://127.0.0.1:5240/card-art.html, and save both pictures into `track\tile\`.
+- **The card pictures:** the jukebox, drawn by the tile's own `looks.js`; the banner names the five looks (since Nov
+  20; the icon is still the Nov 15 one). To redraw: `npm run dev-track`, open http://127.0.0.1:5240/card-art.html, and
+  save the pictures into `track\tile\`.
 - `npm run dev-track`: http://127.0.0.1:5240/ holds the tile in a stand-in host that answers "ready" with a sample
   (an Archive song, a plyr.fm song, an old one, one with a cover, a long one, not a song, nothing), its audio request
   with a short synth loop made for this (`track\dev\sample.mp3`, no one's music) or a refusal or silence, and logs
