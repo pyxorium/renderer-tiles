@@ -111,3 +111,50 @@ body { font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
 .credits .notes { white-space: pre-wrap; margin-top: 6px; max-height: 240px; overflow: auto; padding-right: 6px; overflow-wrap: anywhere; }
 .credits .tags { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
 .credits .tags span { font-size: 12px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line); background: #f2ebdc; color: var(--soft); }
+
+/* ---- The compact layout (PB5, approved in claude/raku-song-posts-mockup.html): a frame under 360 px high, such as a
+   tile post's slot in Raku. The look's picture fills the frame; a strip along the bottom (▶, title and band, the time and
+   seek bar); the look menu (with the scope's colour or Aurora's world) and Credits top left, the top right left clear
+   for the host's own buttons; the credits open over the picture. Plain shows the title card over the cream instead. */
+.compact-only { display: none; }
+.track.is-compact .compact-only { display: revert; }
+.track.is-compact .compact-only[hidden] { display: none !important; }
+.track.is-compact[data-state="track"] { position: fixed; inset: 0; max-width: none; padding: 0; overflow: hidden; }
+.track.is-compact[data-state="track"] .scene { position: absolute; inset: 0; height: auto; border-radius: 0; }
+.track.is-compact[data-state="track"] .looks { position: absolute; top: 6px; left: 8px; right: 120px; z-index: 3; margin: 0; flex-wrap: nowrap; gap: 6px; }
+.track.is-compact .looks .lbl, .track.is-compact .looks .seg { display: none !important; }
+.track.is-compact .looks select, .track.is-compact .looks .cred-btn { display: inline-block; min-width: 0; font: inherit; font-size: 12px; color: #fff; background: rgba(20,16,24,.62); border: 1px solid rgba(255,255,255,.3); border-radius: 999px; padding: 3px 9px; cursor: pointer; }
+.track.is-compact .looks select option { color: #222; background: #fff; }
+.track.is-compact .looks select[hidden] { display: none !important; }
+.track.is-compact[data-look="plain"] .looks select, .track.is-compact[data-look="plain"] .looks .cred-btn { color: var(--ink); background: var(--card); border-color: var(--line); }
+.track.is-compact .under { display: none !important; }
+.track.is-compact[data-state="track"] .card-title { display: none; }
+.track.is-compact[data-state="track"][data-look="plain"] .card-title { display: block; position: absolute; left: 12px; right: 12px; top: 40px; margin: 0; padding: 0; }
+.track.is-compact[data-look="plain"] .card-title h1 { font-size: 20px; }
+.track.is-compact[data-look="plain"] .card-title .cover { display: none; }
+.track.is-compact .player-box { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; }
+.track.is-compact .player { margin: 0; max-width: none; padding: 20px 12px 8px; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px;
+  background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,.74) 42%); color: #fff; }
+.track.is-compact[data-look="plain"] .player { background: none; color: var(--ink); }
+.track.is-compact .play { width: 36px; height: 36px; font-size: 14px; grid-row: 1 / span 2; }
+.track.is-compact .strip-words { display: flex; flex-direction: column; min-width: 0; }
+.track.is-compact .strip-words b, .track.is-compact .strip-words span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.track.is-compact .strip-words b { font-size: 14px; }
+.track.is-compact .strip-words span { font-size: 12px; opacity: .8; }
+.track.is-compact .seek { grid-column: 2; color: inherit; font-size: 12px; opacity: .9; }
+.track.is-compact .status { grid-column: 1 / -1; color: inherit; font-size: 12px; min-height: 0; opacity: .9; }
+.track.is-compact .status:empty { display: none; }
+.track.is-compact .status.warn { color: #ffd28a; }
+.track.is-compact[data-look="plain"] .status.warn { color: #8a5a00; }
+.track.is-compact .linkonly { margin: 0 10px 10px; }
+.track.is-compact .credits { display: none; }
+.track.is-compact.credits-open .credits { display: flex; flex-direction: column; position: absolute; inset: 0; z-index: 4; margin: 0; max-width: none; border: 0; border-radius: 0;
+  padding: 0 14px 12px; overflow: auto; background: rgba(251,248,241,.98); }
+.track.is-compact .cred-head { position: sticky; top: 0; display: flex; align-items: center; gap: 10px; height: 42px; flex: none; background: rgba(251,248,241,.98); }
+.track.is-compact .credits h2 { margin: 0; }
+.track.is-compact .cred-close { font: inherit; font-size: 12px; border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 3px 11px; cursor: pointer; color: var(--ink); }
+.track.is-compact .credits dl { grid-template-columns: max-content 1fr; gap: 2px 12px; font-size: 13px; }
+.track.is-compact .credits dd { margin: 0; }
+.track.is-compact:not([data-look="aurora"]) .aurora-credit { display: none; }
+.aurora-credit { margin-top: 8px; font-size: 13px; color: var(--soft); }
+.track.is-compact.is-phone .looks select, .track.is-compact.is-phone .looks .cred-btn { font-size: 11px; padding: 2px 6px; }

@@ -171,7 +171,10 @@ its approved mockup claude/raku-track-renderer-mockup.html. It lived in maze-til
 - **Aurora (Nov 20, R3c-12):** our own drawing, inspired by Spectra (Shimmer Math Labs,
   https://shimmermathlabs.com/spectra.html; credited under the look and on the "opened alone" screen; no code of
   theirs). Three worlds, chosen under the picture: **Tide** (the song's recent past as diagonal ribbons drifting left),
-  **Bloom** (rings, bass in the centre, rippling outward) and **Prism** (mirrored rays, turning slowly); each brings its
+  **Bloom** (rings, bass near the centre; since Part B, PB6: switched on by the music rather than following it closely,
+  fading up over about 3 s and down over about 4; a soft drifting cloud at the centre, breathing every 12 s, in place of
+  the old petalled core; a slow wave from the cloud every 12 s, crossing in 8 s, brightening and gently bulging the rings
+  it passes; `BLOOM` and `bloomWave` in `aurora.js`) and **Prism** (mirrored rays, turning slowly); each brings its
   own tuned colours and settings, Tide first. The music is kept as 64 bands × 256 moments of spectrum history. Drawn
   with WebGL on its own canvas (one small shader per world), or a 2D fallback on the looks' canvas when the browser has
   no WebGL; on a phone at half resolution and 30 frames a second. Its title card is night navy with an iridescent edge.
@@ -185,6 +188,12 @@ its approved mockup claude/raku-track-renderer-mockup.html. It lived in maze-til
   always works. Raku fetches only the record's own `audioBlob`, from its account's server, at most 100 MB, audio by
   its bytes, checked against the record's CID. A cover (`imageBlob`) comes through `{ picture }`, as Places' card.
   It only ever sends `audio` and `picture`.
+- **The compact layout (Part B, PB5):** in a frame under 360 px high, such as a tile post's slot in Raku (about
+  438×246, or 358×201 on a phone), the look's picture fills the frame; a strip along the bottom holds ▶, the title and
+  band, the time and seek bar; the look menu (with the scope's colour or Aurora's world as small menus) and **Credits**
+  sit top left, the top right left clear for the host's own buttons; the credits open over the picture with Close.
+  Plain shows the title card over the cream. A taller frame (a tab, or Raku's Expand) gets the full page. The stand-in
+  host's **Post slot** and **Post slot (phone)** widths show it.
 - **Opened alone (R3c-10):** with no host, or a host that sends no record within 3 s (webtil.es, a gallery, its own
   address in Raku), it says what Tracks is under a still picture of the jukebox, with two songs to try ("Open in Raku
   ↗", each address in a box to select and copy), the two kinds of song record, a link to the *Renderer tiles* post and

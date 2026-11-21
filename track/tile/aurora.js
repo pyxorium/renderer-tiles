@@ -2,7 +2,7 @@
 // claude/raku-track-aurora-mockup.html. Our own drawing, inspired by Spectra (Shimmer Math Labs,
 // https://shimmermathlabs.com/spectra.html): no code of theirs. Three worlds, each with its own tuned settings:
 //   Tide   the song's recent past as diagonal ribbons: new sound enters at the right and drifts left, fading
-//   Bloom  rings are the frequencies, bass in the centre; outer rings show a little older sound, so it ripples outward
+//   Bloom  rings are the frequencies, calmly; a breathing cloud at the centre; a slow wave from it now and then (PB6)
 //   Prism  each ray a frequency, mirrored all the way round (14 facets), turning slowly
 // The music is kept as a strip of spectrum history (64 bands × 256 moments). Drawn with WebGL (one small shader per
 // world) when the browser offers it, else with a 2D canvas that draws the same ideas more simply. Nothing here touches
@@ -21,7 +21,25 @@ export const WORLDS = Object.freeze({
   bloom: { int: 2.1, dist: 1.1, glow: 1.6, cyc: 0.8, mem: 24, scan: 0, pal: ['#8f7ad8', '#c7b8f0', '#6f8fc8', '#b3cf86'] },
   prism: { int: 2.2, dist: 0.6, glow: 1.5, cyc: 1.5, mem: 16, scan: 1, pal: ['#d9a0b8', '#5f7f9c', '#9fc8c8', '#e7b8a0'] },
 });
-export const NB = 64, NC = 256;   // 64 bands (bass to treble) × 256 moments of history
+export const NB = 64, NC = 256;
+
+// Bloom's own rhythm (PB6, approved Nov 20): switched on by the music, fading up over about 3 s when it starts and down
+// over about 4 s when it stops; the cloud (twice the old core) breathes every 12 s; a wave every 12 s, crossing in 8 s,
+// on the wall clock, rolling out only while the music is on.
+export const BLOOM = Object.freeze({ every: 12, cross: 8, breath: 12, cloud: 2, up: 3, down: 4 });
+/** The wave at clock time t (s) with the light on at `on`: its radius (the rings reach about 0.6), strength, the cloud's swell. */
+export function bloomWave(t, on, B = BLOOM) {
+  const ph = ((t % B.every) + B.every) % B.every;
+  const travel = ph / B.cross;
+  const r = travel < 1 ? 0.03 + travel * 0.72 : -1;
+  const amp = (travel < 1 ? Math.min(1, ph / 0.6) * Math.pow(1 - travel, 1.2) : 0) * on;
+  const dp = Math.min(ph, B.every - ph);
+  return { r, amp, swell: Math.exp(-(dp * dp) / 0.5) * on };
+}
+/** The "on" level after dt seconds: towards 1 while playing, towards 0 when not. */
+export function stepOn(on, dt, playing, B = BLOOM) {
+  return on + ((playing ? 1 : 0) - on) * Math.min(1, (dt / (playing ? B.up : B.down)) * 2.5);
+}   // 64 bands (bass to treble) × 256 moments of history
 
 export function createHistory() {
   const data = new Float32Array(NB * NC);   // [column][band]
@@ -57,6 +75,7 @@ precision highp float;
 uniform sampler2D u_hist; uniform vec2 u_res;
 uniform float u_head, u_time, u_cycle, u_int, u_dist, u_glow, u_scan, u_level;
 uniform vec3 u_c0, u_c1, u_c2, u_c3;
+uniform float u_wave, u_waveAmp, u_swell, u_on, u_breath, u_csize;
 float hist(float age, float f) {
   float x = (u_head - age * 249.0 + 0.5) / 256.0;
   return texture2D(u_hist, vec2(x, clamp(f, 0.0, 1.0) * (63.0 / 64.0) + 0.5 / 64.0)).r;
@@ -103,22 +122,40 @@ void main() {
   float J = I + broad;
   gl_FragColor = vec4(finish(col * J * 1.3 + col * u_glow * 0.5 * J * J), 1.0);
 }`,
-  // Bloom: rings are the frequencies, bass in the centre, treble outside; each swells and brightens with its part
-  // of the music; outer rings show a little older sound, so the music ripples outward.
+  // Bloom (new Nov 20, PB6): rings are the frequencies, bass near the centre, treble outside, following the music
+  // calmly (a longer stretch of the past, a smaller swing); the inner rings stay round (the wobble fades in away from the
+  // centre); a soft drifting cloud at the centre that breathes on its own; a very slow wave released from the cloud now
+  // and then, brightening the rings it crosses and bulging them gently outward. All of it switched on by the music
+  // (u_on), not following its loudness.
   bloom: COMMON + `
+float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y); }
+float fbm(vec2 p) { float s = 0.0, m = 0.5; for (int k = 0; k < 4; k++) { s += m * vnoise(p); p *= 2.03; m *= 0.5; } return s; }
 void main() {
-  vec2 p = (gl_FragCoord.xy - 0.5 * u_res) / u_res.y; float r = length(p); float a = atan(p.y, p.x);
-  r += u_dist * (0.012 * sin(a * 3.0 + u_time * 0.4) + 0.007 * sin(a * 5.0 - u_time * 0.55));
-  float f = clamp(r / 0.6, 0.0, 1.0);
-  float e = hist(f * 0.35, f);
+  vec2 p = (gl_FragCoord.xy - 0.5 * u_res) / u_res.y; float r0 = length(p); float a = atan(p.y, p.x);
+  float wob = smoothstep(0.06, 0.32, r0);
+  float r = r0 + wob * u_dist * (0.012 * sin(a * 3.0 + u_time * 0.4) + 0.007 * sin(a * 5.0 - u_time * 0.55));
+  float d = r - u_wave;
+  float bulge = exp(-d * d / 0.008) * u_waveAmp;
+  float rr = r - 0.03 * bulge;
+  float band = exp(-d * d / 0.0035) * u_waveAmp;
+  float f = clamp(rr / 0.6, 0.0, 1.0);
+  float ea = f * 0.35;
+  float eavg = (hist(ea, f) + hist(ea + 0.04, f) + hist(ea + 0.08, f) + hist(ea + 0.12, f)) / 4.0;
+  float e = u_on * (0.22 + 0.5 * eavg);
   float ring = 0.5 + 0.5 * cos(f * 7.0 * 6.28318 - u_time * 0.35);
   ring = pow(ring, mix(4.0, 1.3, clamp(e, 0.0, 1.0)));
   float edge = smoothstep(1.15, 0.7, r / 0.6);
-  float I = (0.07 + ring * (0.10 + e * u_int * 0.5)) * edge;
-  float core = exp(-r * r * 60.0) * (0.15 + u_level * 0.6);
+  float inner = smoothstep(0.05 * u_csize, 0.17 * u_csize, r0);
+  float I = (0.07 + ring * (0.10 + e * u_int * 0.5) * (1.0 + 0.8 * band)) * edge * inner + band * 0.16 * edge;
+  float cr = 0.14 * u_csize * (1.0 + 0.4 * u_swell);
+  vec2 q = p * 5.0 + vec2(u_time * 0.05, -u_time * 0.035);
+  float n = fbm(q + fbm(q * 0.7 + u_time * 0.02));
+  float cloud = exp(-r0 * r0 / (cr * cr)) * (0.2 + 1.1 * n * n) * (0.10 + u_on * (0.28 + 0.34 * u_breath) + u_swell * 0.4);
   vec3 col = pal(f * 0.9 + 0.06 * sin(a * 2.0 + u_time * 0.2) + u_cycle);
-  float J = I + core;
-  gl_FragColor = vec4(finish(col * J * 1.3 + col * u_glow * 0.5 * J * J), 1.0);
+  vec3 ccol = mix(u_c0, u_c1, n);
+  float J = I;
+  gl_FragColor = vec4(finish(col * J * 1.3 + col * u_glow * 0.5 * J * J + ccol * cloud * 2.3), 1.0);
 }`,
   // Prism: each ray a frequency, mirrored all the way round (14 facets); rays lengthen and brighten with their part
   // of the music; the whole pattern turns slowly.
@@ -146,7 +183,7 @@ function createAuroraGL(cv) {
   try { gl = cv.getContext('webgl', { antialias: false, premultipliedAlpha: false, preserveDrawingBuffer: true }) || cv.getContext('experimental-webgl'); } catch { gl = null; }
   if (!gl) return null;
   const compile = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
-  const NAMES = ['u_hist', 'u_res', 'u_head', 'u_time', 'u_cycle', 'u_int', 'u_dist', 'u_glow', 'u_scan', 'u_level', 'u_c0', 'u_c1', 'u_c2', 'u_c3'];
+  const NAMES = ['u_wave', 'u_waveAmp', 'u_swell', 'u_on', 'u_breath', 'u_csize', 'u_hist', 'u_res', 'u_head', 'u_time', 'u_cycle', 'u_int', 'u_dist', 'u_glow', 'u_scan', 'u_level', 'u_c0', 'u_c1', 'u_c2', 'u_c3'];
   const progs = {};
   try {
     const vs = compile(gl.VERTEX_SHADER, VERT);
@@ -172,7 +209,7 @@ function createAuroraGL(cv) {
   let lastHead = -1;
   return {
     resize(w, h, scale) { cv.width = Math.max(1, Math.round(w * scale)); cv.height = Math.max(1, Math.round(h * scale)); },
-    draw(world, hist, time) {
+    draw(world, hist, time, light) {
       const W = WORLDS[world], P = progs[world];
       // upload the newest column (and the one just finished, when the head moved)
       const put = (c) => { for (let b = 0; b < NB; b++) col[b] = Math.round(Math.min(1, hist.data[c * NB + b]) * 255); gl.texSubImage2D(gl.TEXTURE_2D, 0, c, 0, 1, NB, gl.LUMINANCE, gl.UNSIGNED_BYTE, col); };
@@ -185,13 +222,15 @@ function createAuroraGL(cv) {
       gl.uniform1f(u.u_cycle, time * 0.012 * W.cyc); gl.uniform1f(u.u_int, W.int); gl.uniform1f(u.u_dist, W.dist);
       gl.uniform1f(u.u_glow, W.glow); gl.uniform1f(u.u_scan, W.scan); gl.uniform1f(u.u_level, hist.level());
       W.pal.forEach((h, i) => gl.uniform3fv(u['u_c' + i], hex(h)));
+      gl.uniform1f(u.u_wave, light.wave.r); gl.uniform1f(u.u_waveAmp, light.wave.amp); gl.uniform1f(u.u_swell, light.wave.swell);
+      gl.uniform1f(u.u_on, light.on); gl.uniform1f(u.u_breath, light.breath); gl.uniform1f(u.u_csize, BLOOM.cloud);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     },
   };
 }
 
 // The 2D fallback: the same three ideas, drawn more simply.
-export function drawAurora2D(g, W, H, world, hist, time) {
+export function drawAurora2D(g, W, H, world, hist, time, light = { on: 1, breath: 0.5, wave: { r: -1, amp: 0, swell: 0 } }) {
   const S = WORLDS[world], pal = S.pal.map(hex);
   const palAt = (t, a) => {
     t = ((t % 1) + 1) % 1 * 4; const k = Math.floor(t), u = t - k, c0 = pal[k % 4], c1 = pal[(k + 1) % 4];
@@ -217,18 +256,26 @@ export function drawAurora2D(g, W, H, world, hist, time) {
       }
     }
   } else if (world === 'bloom') {
-    const cx = W / 2, cy = H / 2, R = H * 0.6;
+    const cx = W / 2, cy = H / 2, R = H * 0.6, wv = light.wave;
     for (let j = 0; j < 9; j++) {
-      const f = (j + 0.5) / 9, e = hist.at(f * 0.35, f);
-      const rad = f * R + Math.sin(time * 0.35 + j) * 2;
-      g.strokeStyle = palAt(f * 0.9 + cyc, 0.12 + e * 0.6); g.lineWidth = 2 + e * 10;
+      const f = (j + 0.5) / 9; if (f * 0.6 < 0.1 * BLOOM.cloud) continue;
+      const e = light.on * (0.22 + 0.5 * hist.at(f * 0.35 + 0.05, f));
+      const d = f * 0.6 - wv.r, band = Math.exp(-d * d / 0.004) * wv.amp;
+      const rad = f * R + band * 0.022 * H;
+      g.strokeStyle = palAt(f * 0.9 + cyc, 0.12 + e * 0.6 + band * 0.3); g.lineWidth = 2 + e * 10;
       g.shadowColor = palAt(f * 0.9 + cyc, 1); g.shadowBlur = 8 + e * 16 * S.glow;
       g.beginPath(); g.arc(cx, cy, rad, 0, Math.PI * 2); g.stroke();
     }
     g.shadowBlur = 0;
-    const core = g.createRadialGradient(cx, cy, 0, cx, cy, H * 0.15);
-    core.addColorStop(0, palAt(cyc, 0.25 + hist.level() * 0.5)); core.addColorStop(1, palAt(cyc, 0));
-    g.fillStyle = core; g.fillRect(0, 0, W, H);
+    if (wv.amp > 0.01) { g.strokeStyle = palAt(0.3 + cyc, 0.22 * wv.amp); g.lineWidth = 10; g.beginPath(); g.arc(cx, cy, wv.r / 0.6 * R, 0, Math.PI * 2); g.stroke(); }
+    const cr = H * 0.14 * BLOOM.cloud * (1 + 0.4 * wv.swell);
+    for (let k = 0; k < 5; k++) {
+      const ox = Math.sin(time * 0.05 + k * 1.7) * cr * 0.35, oy = Math.cos(time * 0.04 + k * 2.3) * cr * 0.3;
+      const core = g.createRadialGradient(cx + ox, cy + oy, 0, cx + ox, cy + oy, cr * (0.8 + 0.25 * k / 4));
+      core.addColorStop(0, palAt(0.25 + k * 0.05 + cyc, (0.05 + light.on * (0.10 + 0.12 * light.breath) + wv.swell * 0.12)));
+      core.addColorStop(1, palAt(0.3 + cyc, 0));
+      g.fillStyle = core; g.fillRect(0, 0, W, H);
+    }
   } else {
     const cx = W / 2, cy = H / 2, R = H, n = 14, sub = 6, seg = Math.PI * 2 / n, rot = time * 0.035;
     for (let k = 0; k < n; k++) {
@@ -255,15 +302,20 @@ export function createAurora(glCanvas, canvas2d, options = {}) {
   const g = canvas2d.getContext('2d');
   const hist = createHistory();
   let W = 0, H = 0;
+  // Bloom's light: the on level, the clock (wall time, steady whatever the music does), the breathing and the wave
+  let on = 0, clock = 0;
+  const light = () => ({ on, breath: 0.5 + 0.5 * Math.sin((clock * 2 * Math.PI) / BLOOM.breath), wave: bloomWave(clock, on) });
   return {
     get gl() { return !!gl; },
     resize(w, h, scale) { W = w; H = h; if (gl) gl.resize(w, h, scale); },
-    step(dt, bands, playing, world) { hist.step(dt, bands, playing, (WORLDS[world] || WORLDS.tide).mem); },
+    step(dt, bands, playing, world) { hist.step(dt, bands, playing, (WORLDS[world] || WORLDS.tide).mem); on = stepOn(on, dt, playing); clock += dt; },
+    get on() { return on; },
     draw(world, time) {
       if (!W || !H) return;
       if (!WORLDS[world]) world = 'tide';
-      if (gl) gl.draw(world, hist, time);
-      else drawAurora2D(g, W, H, world, hist, time);
+      const L = light();
+      if (gl) gl.draw(world, hist, time, L);
+      else drawAurora2D(g, W, H, world, hist, time, L);
     },
   };
 }

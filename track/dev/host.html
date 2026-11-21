@@ -13,6 +13,9 @@
   .wrap { display: flex; gap: 14px; padding: 0 14px 14px; flex-wrap: wrap; }
   iframe { flex: 1 1 640px; height: 1000px; border: 0; border-radius: 8px; background: #fff; }
   iframe.phone { flex: 0 0 390px; height: 1100px; }
+  /* a tile post's slot in Raku (16:9 in the card): the compact layout (PB5) */
+  iframe.slot { flex: 0 0 438px; height: 246px; }
+  iframe.slotphone { flex: 0 0 358px; height: 201px; }
   #log { flex: 1 1 260px; margin: 0; background: #1d1d1d; border-radius: 8px; padding: 10px; white-space: pre-wrap; font: 12px ui-monospace, monospace; min-height: 200px; max-height: 1000px; overflow: auto; }
 </style>
 </head>
@@ -36,6 +39,8 @@
   <span><b>Width</b></span>
   <button data-w="wide" aria-pressed="true">Computer</button>
   <button data-w="phone">Phone</button>
+  <button data-w="slot">Post slot</button>
+  <button data-w="slotphone">Post slot (phone)</button>
 </header>
 <div class="wrap"><iframe id="f" title="The tile"></iframe><pre id="log"></pre></div>
 <script type="module">
@@ -66,7 +71,7 @@ let sample = 'archive', audioMode = 'send';
 const choose = (attr, v) => { for (const b of document.querySelectorAll(`[data-${attr}]`)) b.setAttribute('aria-pressed', String(b.dataset[attr] === v)); };
 for (const b of document.querySelectorAll('[data-s]')) b.onclick = () => { sample = b.dataset.s; choose('s', sample); load(); };
 for (const b of document.querySelectorAll('[data-a]')) b.onclick = () => { audioMode = b.dataset.a; choose('a', audioMode); };
-for (const b of document.querySelectorAll('[data-w]')) b.onclick = () => { frame.classList.toggle('phone', b.dataset.w === 'phone'); choose('w', b.dataset.w); };
+for (const b of document.querySelectorAll('[data-w]')) b.onclick = () => { for (const c of ['phone', 'slot', 'slotphone']) frame.classList.toggle(c, b.dataset.w === c); choose('w', b.dataset.w); };
 const payloadOf = (name) => { const s = SAMPLES[name]; return { uri: `at://${P}/${s.collection}/${s.rkey}`, cid: 'bafyreisamplerecordaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', did: P, handle: s.handle, collection: s.collection, rkey: s.rkey, value: s.value }; };
 const send = (payload, transfer) => frame.contentWindow.postMessage({ action: 'tiles-protocol-down-data-payload', payload }, '*', transfer || []);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));

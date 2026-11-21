@@ -5,7 +5,7 @@
 // sought, the five looks, the scope's colour and Aurora's three worlds (the picture moving with the music; Aurora with
 // WebGL, and its 2D fallback in a browser without WebGL), the choices remembered, the host's refusals, no answer, the
 // link-only plyr.fm song, a cover, not a song, opened alone (what Tracks is, two songs to try in Raku), phone width,
-// no errors.
+// the compact layout in a post's slot (PB5), the new Bloom (PB6), no errors.
 // Raku's own check (C:\thunderbird-cafe\raku\test\browser\check_renderer.py) runs it through the real loader.
 // Run in the build chat: node test/browser/check_track.mjs [folder for screenshots]   (needs Playwright)
 import { createRequire } from 'node:module';
@@ -177,20 +177,62 @@ try {
   // Phone
   await pick('s', 'archive'); await pick('w', 'phone');
   await until(async () => (await state()) === 'track');
-  check('phone: the look switch is a small menu', await until(async () => (await tile.locator('.looks select').isVisible()) && !(await tile.locator('.looks .seg:not(.colours)').isVisible())));
-  await tile.locator('.looks select').selectOption('aurora');
+  check('phone: the look switch is a small menu', await until(async () => (await tile.locator('.looks select[aria-label="Look"]').isVisible()) && !(await tile.locator('.looks .seg:not(.colours)').isVisible())));
+  await tile.locator('.looks select[aria-label="Look"]').selectOption('aurora');
   check('...Aurora\'s world a small menu too', await until(async () => (await tile.locator('.under select').isVisible()) && !(await tile.locator('.under .seg').isVisible())));
   await tile.locator('.under select').selectOption('tide');
   check('...choosing a world from it', await pressed('[data-world="tide"]'));
   check('...drawn lighter: half resolution', await frame().evaluate(() => { const c = document.querySelector('.scene canvas.gl'); return Math.abs(c.width - c.getBoundingClientRect().width * 0.5 * Math.min(2, devicePixelRatio)) <= 1; }));
   await page.screenshot({ path: path.join(SHOTS, 'track-phone-aurora.png'), fullPage: true });
-  await tile.locator('.looks select').selectOption('reel');
+  await tile.locator('.looks select[aria-label="Look"]').selectOption('reel');
   check('...choosing from it changes the look', (await tile.locator('#track').getAttribute('data-look')) === 'reel');
   check('...the credits stack (label above value)', await tile.locator('.credits dl').evaluate((d) => getComputedStyle(d).gridTemplateColumns.split(' ').length === 1));
   check('...nothing spills sideways', await frame().evaluate(() => [...document.querySelectorAll('#track *')].every((e) => e.getBoundingClientRect().right <= innerWidth + 1)));
   await page.screenshot({ path: path.join(SHOTS, 'track-phone.png'), fullPage: true });
-  await tile.locator('.looks select').selectOption('jukebox');
+  await tile.locator('.looks select[aria-label="Look"]').selectOption('jukebox');
   await pick('w', 'wide');
+
+  // The compact layout (PB5): in a tile post's slot (438×246, then 358×201 on a phone)
+  for (const [w, label] of [['slot', 'a post slot'], ['slotphone', 'a phone post slot']]) {
+    await pick('w', w);
+    await pick('s', 'archive');
+    check(`${label}: the compact layout`, await until(async () => (await state()) === 'track' && await tile.locator('#track').evaluate((e) => e.classList.contains('is-compact'))));
+    const geo = await frame().evaluate(() => {
+      const r = (s) => { const e = document.querySelector(s); return e && e.offsetParent !== null ? e.getBoundingClientRect() : null; };
+      return { W: innerWidth, H: innerHeight, scene: r('.scene'), looks: r('.looks select'), strip: r('.player'), words: r('.strip-words'), card: r('.card-title'), credits: r('.credits'),
+        right: Math.max(...[...document.querySelectorAll('.looks > *')].filter((e) => e.offsetParent !== null).map((e) => e.getBoundingClientRect().right)),
+        scroll: document.scrollingElement.scrollHeight - innerHeight };
+    });
+    check('...the picture fills the frame', geo.scene && geo.scene.width >= geo.W - 1 && geo.scene.height >= geo.H - 1, JSON.stringify(geo.scene));
+    check('...a strip along the bottom with ▶, the title and band', geo.strip && Math.abs(geo.strip.bottom - geo.H) < 1 && geo.words && (await text('.strip-words b')) === 'Lord Only Knows (Pt. 1)' && (await text('.strip-words span')) === 'Yonder Mountain String Band');
+    check('...the look menu top left, the top right kept clear for the host\'s buttons (120 px)', geo.looks && geo.looks.top < 12 && geo.looks.left < 12 && geo.right <= geo.W - 120, `${geo.right} of ${geo.W}`);
+    check('...no title card, no credits card, nothing to scroll', !geo.card && !geo.credits && geo.scroll <= 0, `${geo.scroll}`);
+    await tile.locator('.play').click();
+    check('...▶ in the strip plays the song', await until(async () => (await tile.locator('.play').getAttribute('aria-label')) === 'Pause'));
+    await tile.locator('.looks select[aria-label="Look"]').selectOption('aurora');
+    check('...Aurora from the menu, its World menu beside it (no World row)', await until(async () => (await tile.locator('#track').getAttribute('data-look')) === 'aurora')
+      && await tile.locator('.looks select[aria-label="World"]').isVisible() && !(await tile.locator('.under').isVisible()));
+    await tile.locator('.looks select[aria-label="World"]').selectOption('bloom');
+    await sleep(600); const b1 = await glInk(); await sleep(500); const b2 = await glInk();
+    check('...the new Bloom draws and moves in the slot', b1 > 0 && b1 !== b2, `${b1} ${b2}`);
+    check('...drawn lighter (half resolution)', await frame().evaluate(() => { const c = document.querySelector('.scene canvas.gl'); return Math.abs(c.width - c.getBoundingClientRect().width * 0.5 * Math.min(2, devicePixelRatio)) <= 1; }));
+    await page.screenshot({ path: path.join(SHOTS, `track-${w}-aurora.png`) });
+    await tile.locator('.looks .cred-btn').click();
+    check('...Credits open over the picture, with Close, the top row clear', await tile.locator('.credits').isVisible() && (await text('.credits .cred-close')) === 'Close'
+      && await tile.locator('.credits .aurora-credit').isVisible() && await frame().evaluate(() => { const c = document.querySelector('.cred-close').getBoundingClientRect(); return c.right < innerWidth - 120 && c.top < 42; }));
+    await page.screenshot({ path: path.join(SHOTS, `track-${w}-credits.png`) });
+    await tile.locator('.credits .cred-close').click();
+    check('...Close folds them away again', !(await tile.locator('.credits').isVisible()));
+    await tile.locator('.looks select[aria-label="Look"]').selectOption('scope');
+    check('...the scope\'s colour as a small menu', await tile.locator('.looks select[aria-label="Colour"]').isVisible() && !(await tile.locator('.looks .colours').isVisible()));
+    await tile.locator('.looks select[aria-label="Look"]').selectOption('plain');
+    check('...Plain: the title card over the cream, the strip still there', await until(async () => await tile.locator('.card-title').isVisible()) && await tile.locator('.play').isVisible());
+    await tile.locator('.looks select[aria-label="Look"]').selectOption('jukebox');
+    await sleep(400); await page.screenshot({ path: path.join(SHOTS, `track-${w}-jukebox.png`) });
+    await tile.locator('.play').click();
+  }
+  await pick('w', 'wide');
+  check('back to a full frame: the full page again', await until(async () => !(await tile.locator('#track').evaluate((e) => e.classList.contains('is-compact'))) && await tile.locator('.card-title').isVisible() && await tile.locator('.credits').isVisible()));
 
   // Reduced motion: Plain first (when nothing was chosen before)
   const rm = await browser.newContext({ viewport: { width: 1200, height: 1100 }, reducedMotion: 'reduce' });

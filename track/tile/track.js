@@ -14,6 +14,10 @@
 //   4. a cover, when the record lists one, through the host's picture request (as Places' tile card);
 //   5. the look, the scope's colour and Aurora's world are remembered in the tile's own storage when the browser keeps
 //      it (R3c-1; all three written together on every change, so one never outlives the others).
+//   6. in a short frame (under COMPACT_PX high: a tile post's slot in Raku, PB5) the compact layout: the look's picture
+//      fills the frame, a strip along the bottom holds ▶, the title and band, the time and seek bar; the look menu (and
+//      the scope's colour or Aurora's world) and Credits sit top left; the credits open over the picture. Raku's own
+//      buttons sit top right, so that row is left clear;
 import {
   readTrack, readAudioAnswer, readPicture, sizeLine, AUDIO_ERRORS, LOOKS, SCOPE_COLOURS, AURORA_WORLDS, AURORA_CREDIT,
   firstLook, firstColour, firstWorld, formatTime, rakuLink, TRY_SONGS, RENDERERS_POST, TRACK, PLYR,
@@ -23,6 +27,7 @@ import { createAurora, NB } from './aurora.js';
 
 const root = document.getElementById('track');
 const NO_HOST_MS = 3000;
+const COMPACT_PX = 360;          // a frame shorter than this gets the compact layout (PB5)
 const STALL_MS = 30000;          // no progress from the host for this long: give up and offer Try again
 const PICTURE_WAIT_MS = 10000;
 const LOOK_KEY = 'tracks.look', COLOUR_KEY = 'tracks.scopeColour', WORLD_KEY = 'tracks.world';
@@ -76,7 +81,16 @@ for (const c of SCOPE_COLOURS) {
   b.addEventListener('click', () => { colour = c.id; rememberAll(); drawLookBar(); });
   colourSeg.append(b);
 }
-lookBar.append(el('span', { class: 'lbl' }, 'Look:'), seg, pick, colourSeg);
+// The compact layout's extras in the same row: the scope's colour and Aurora's world as small menus, and Credits.
+const colourPick = el('select', { class: 'compact-only', 'aria-label': 'Colour' });
+for (const c of SCOPE_COLOURS) colourPick.append(el('option', { value: c.id }, c.name));
+colourPick.addEventListener('change', () => { colour = colourPick.value; rememberAll(); drawLookBar(); });
+const worldPickTop = el('select', { class: 'compact-only', 'aria-label': 'World' });
+for (const w of AURORA_WORLDS) worldPickTop.append(el('option', { value: w.id }, w.name));
+worldPickTop.addEventListener('change', () => setWorld(worldPickTop.value));
+const creditsBtn = el('button', { type: 'button', class: 'compact-only cred-btn', 'aria-expanded': 'false' }, 'Credits');
+creditsBtn.addEventListener('click', () => showCredits(!root.classList.contains('credits-open')));
+lookBar.append(el('span', { class: 'lbl' }, 'Look:'), seg, pick, colourSeg, colourPick, worldPickTop, creditsBtn);
 const sceneBox = el('div', { class: 'scene' });
 const canvas = el('canvas', { 'aria-hidden': 'true' });
 const glCanvas = el('canvas', { 'aria-hidden': 'true', class: 'gl' });
@@ -99,11 +113,19 @@ worldBar.append(el('span', { class: 'world' }, el('span', { class: 'lbl' }, 'Wor
 const card = el('div', { class: 'card-title' });
 const player = el('div', { class: 'player-box' });
 const credits = el('section', { class: 'credits', 'aria-label': 'Credits' });
+function showCredits(open) {
+  root.classList.toggle('credits-open', open);
+  creditsBtn.setAttribute('aria-expanded', String(open));
+}
 
 function drawLookBar() {
   for (const b of seg.children) b.setAttribute('aria-pressed', String(b.dataset.look === look));
   pick.value = look;
   colourSeg.hidden = look !== 'scope';
+  colourPick.hidden = look !== 'scope';
+  colourPick.value = colour;
+  worldPickTop.hidden = look !== 'aurora';
+  worldPickTop.value = world;
   for (const b of colourSeg.children) b.setAttribute('aria-pressed', String(b.dataset.colour === colour));
   root.dataset.look = look;
   sceneBox.hidden = look === 'plain';
@@ -127,11 +149,13 @@ function setWorld(id) {
   rememberAll();
   drawLookBar();
 }
-// The picture's size; on a phone Aurora is drawn lighter (half resolution, and 30 frames a second in the loop).
+// The picture's size; on a phone or in the compact layout Aurora is drawn lighter (half resolution, and 30 frames a
+// second in the loop).
+const lighter = () => root.classList.contains('is-phone') || root.classList.contains('is-compact');
 function sizeScene() {
   scene.resize();
   const r = sceneBox.getBoundingClientRect(), dpr = Math.min(2, globalThis.devicePixelRatio || 1);
-  aurora.resize(r.width, r.height, root.classList.contains('is-phone') ? 0.5 * dpr : dpr);
+  aurora.resize(r.width, r.height, lighter() ? 0.5 * dpr : dpr);
 }
 
 // ---- states without a song ----
@@ -217,14 +241,18 @@ function drawPlayer() {
   total = el('span', { class: 'total' }, view.duration ? formatTime(view.duration) : '');
   line = el('p', { class: 'status' }, sizeLine(view.audio));
   if (view.audio.size > 30 * 1024 * 1024) line.classList.add('warn');
-  p.append(playBtn, el('div', { class: 'seek' }, now, seek, total), line);
+  // the strip's words (shown in the compact layout only: the title card's place)
+  const words = el('div', { class: 'strip-words compact-only' }, el('b', {}, view.title), view.artist ? el('span', {}, view.artist) : null);
+  p.append(playBtn, words, el('div', { class: 'seek' }, now, seek, total), line);
   player.append(p);
   playBtn.addEventListener('click', onPlay);
   seek.addEventListener('input', () => { if (audio) { audio.currentTime = Number(seek.value); now.textContent = formatTime(audio.currentTime); } });
 }
 
 function drawCredits() {
-  credits.replaceChildren(el('h2', {}, 'Credits'));
+  const close = el('button', { type: 'button', class: 'cred-close compact-only' }, 'Close');
+  close.addEventListener('click', () => showCredits(false));
+  credits.replaceChildren(el('div', { class: 'cred-head' }, close, el('h2', {}, 'Credits')));
   if (view.credits.length) {
     const dl = el('dl');
     for (const [k, v] of view.credits) dl.append(el('dt', {}, k), el('dd', {}, v));
@@ -245,9 +273,12 @@ function drawCredits() {
     credits.append(t);
   }
   if (view.by) credits.append(el('p', { class: 'by' }, `Shared by ${view.by}`));
+  // in the compact layout the World row (with Aurora's credit) is folded away, so the credit is here
+  credits.append(el('p', { class: 'aurora-credit compact-only' }, 'Aurora is inspired by ', el('a', { href: AURORA_CREDIT.href, target: '_blank', rel: 'noopener noreferrer' }, AURORA_CREDIT.text), '.'));
 }
 
 function drawTrack() {
+  showCredits(false);
   show('track', lookBar, sceneBox, worldBar, card, player, credits);
   drawLookBar();
   drawTitle();
@@ -372,7 +403,7 @@ function frame(t) {
     aurora.step(dt, listener.bands(NB, playing), playing, world);
     auroraTime += dt * (playing ? 1 : 0.2) * (lessMotion ? 0.3 : 1);
     if (look === 'aurora') {
-      if (!root.classList.contains('is-phone') || t - auroraLast >= 33) { auroraLast = t; aurora.draw(world, auroraTime); }
+      if (!lighter() || t - auroraLast >= 33) { auroraLast = t; aurora.draw(world, auroraTime); }
     } else if (look !== 'plain') scene.draw(look, dt, {
       playing, lessMotion, colour,
       time: audio ? audio.currentTime : 0,
@@ -386,8 +417,15 @@ function frame(t) {
 requestAnimationFrame(frame);
 
 // The phone look by the tile's own width (R3c-7): the Look switch becomes a small menu.
-const narrow = () => root.classList.toggle('is-phone', root.getBoundingClientRect().width < 560);
+// The compact layout by the frame's own height (PB5): a tile post's slot in Raku (about 438×246, or 358×201 on a phone).
+const narrow = () => {
+  root.classList.toggle('is-phone', root.getBoundingClientRect().width < 560);
+  const compact = (globalThis.innerHeight || 1000) < COMPACT_PX;
+  if (!compact && root.classList.contains('credits-open')) showCredits(false);
+  root.classList.toggle('is-compact', compact);
+};
 if (typeof ResizeObserver === 'function') new ResizeObserver(() => { narrow(); if (look !== 'plain') sizeScene(); }).observe(root);
+globalThis.addEventListener?.('resize', () => { narrow(); if (look !== 'plain') sizeScene(); });
 narrow();
 
 drawWaiting();

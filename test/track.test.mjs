@@ -10,7 +10,7 @@ import {
   readTrack, readAudioAnswer, readPicture, sizeLine, firstLook, longDate, formatTime, formatSize, showOnly, safeLink,
   TRACK, PLYR, LOOKS, AUDIO_ERRORS, BIG_SONG, AURORA_WORLDS, AURORA_CREDIT, firstColour, firstWorld, rakuLink, TRY_SONGS,
 } from '../track/tile/view.js';
-import { WORLDS, createHistory, NB, NC } from '../track/tile/aurora.js';
+import { WORLDS, createHistory, NB, NC, BLOOM, bloomWave, stepOn } from '../track/tile/aurora.js';
 import { runPublish, ACCOUNT, RESERVED_KEYS } from '../scripts/publish.mjs';
 import { TRACK_TILES, ROOT } from '../scripts/tiles.mjs';
 import { createFakePds } from './fake-pds.mjs';
@@ -260,4 +260,36 @@ test('the jukebox (R3c-13 and the bubbles): every arch segment and both pillars 
   assert.match(js, /lit = 0\.3 \+ beat \* 0\.7/);
   assert.match(js, /tubeBubbles\[side < 0 \? 0 : 1\]/);
   assert.match(js, /bb\.y -= dt \* bb\.s \* 0\.4 \* \(s\.lessMotion \? 0\.1 : 1\)/, 'very slow and steady: no swing with the music');
+});
+
+// ---------- Part B (Nov 20): the new Bloom (PB6) and the compact layout (PB5) ----------
+
+test('the new Bloom\'s rhythm (PB6): a wave every 12 s crossing in 8, a cloud twice the size breathing every 12 s, fading in over ~3 s and out over ~4', () => {
+  assert.deepEqual({ ...BLOOM }, { every: 12, cross: 8, breath: 12, cloud: 2, up: 3, down: 4 });
+  let on = 0;
+  for (let i = 0; i < 30; i++) on = stepOn(on, 0.1, true);
+  assert.ok(on > 0.9 && on < 1, `on after 3 s of music: ${on}`);
+  for (let i = 0; i < 40; i++) on = stepOn(on, 0.1, false);
+  assert.ok(on < 0.1, `after 4 s of quiet: ${on}`);
+  const w = (t, o = 1) => bloomWave(t, o);
+  assert.ok(w(0.6).r > 0 && w(0.6).amp > 0.8, 'a wave leaves the cloud');
+  assert.ok(w(4).r > w(2).r && w(4).amp < w(2).amp, 'it rolls outward and fades');
+  assert.equal(w(9).amp, 0, 'none between waves (after 8 s of crossing)');
+  assert.ok(w(12.6).amp > 0.8, 'the next one, 12 s later');
+  assert.ok(w(11.9).swell > 0.9 && w(6).swell < 0.01, 'the cloud swells just before a wave leaves');
+  assert.equal(w(0.6, 0).amp, 0, 'no waves while the music is off');
+  assert.equal(w(11.9, 0).swell, 0);
+  const js = readFileSync(join(ROOT, 'track', 'tile', 'aurora.js'), 'utf8');
+  assert.match(js, /smoothstep\(0\.06, 0\.32, r0\)/, 'the wobble fades in away from the centre (no petals)');
+  assert.match(js, /0\.14 \* u_csize/, 'the cloud, scaled by BLOOM.cloud');
+  assert.ok(!/u_level/.test(js.slice(js.indexOf('bloom: COMMON'), js.indexOf('prism: COMMON'))), 'Bloom no longer follows the loudness (u_level)');
+});
+
+test('the compact layout (PB5): a frame under 360 px high; the look menu, the world and colour menus, Credits and the strip\'s words', () => {
+  const js = readFileSync(join(ROOT, 'track', 'tile', 'track.js'), 'utf8');
+  assert.match(js, /const COMPACT_PX = 360;/);
+  assert.match(js, /\(globalThis\.innerHeight \|\| 1000\) < COMPACT_PX/);
+  for (const k of ["'aria-label': 'Colour'", "'aria-label': 'World'", "class: 'compact-only cred-btn'", "class: 'strip-words compact-only'", "class: 'cred-close compact-only'", "class: 'aurora-credit compact-only'"]) assert.ok(js.includes(k), k);
+  const css = readFileSync(join(ROOT, 'track', 'tile', 'track.css'), 'utf8');
+  assert.match(css, /\.track\.is-compact\[data-state="track"\] \.looks \{[^}]*right: 120px/, 'the top right left clear for the host\'s buttons');
 });
