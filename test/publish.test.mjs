@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { runPublish, kindOf, ACCOUNT } from '../scripts/publish.mjs';
-import { PLACE_TILES, SIGNPOST_TILES, TRACK_TILES } from '../scripts/tiles.mjs';
+import { PLACE_TILES, SIGNPOST_TILES, TRACK_TILES, VIDEO_TILES } from '../scripts/tiles.mjs';
 import { createFakePds } from './fake-pds.mjs';
 import { dagCborCid } from '../scripts/lib/dagcbor.js';
 import { rawCid } from '../scripts/lib/cid.js';
@@ -25,14 +25,15 @@ test('the command line names exactly one renderer', () => {
   assert.equal(kindOf(['--place']), PLACE_TILES);
   assert.equal(kindOf(['--signpost', '--dry-run']), SIGNPOST_TILES);
   assert.equal(kindOf(['--again', '--track']), TRACK_TILES);
-  assert.throws(() => kindOf([]), /--place, --signpost or --track/);
-  assert.throws(() => kindOf(['--dry-run']), /--place, --signpost or --track/);
+  assert.equal(kindOf(['--video', '--dry-run']), VIDEO_TILES);
+  assert.throws(() => kindOf([]), /--place, --signpost, --track or --video/);
+  assert.throws(() => kindOf(['--dry-run']), /--place, --signpost, --track or --video/);
   assert.throws(() => kindOf(['--place', '--track']), /one at a time/);
 });
 
 test('without a renderer named, nothing is asked or written', async () => {
   const pds = cafePds();
-  await assert.rejects(run(pds, { tiles: undefined }), /--place, --signpost or --track/);
+  await assert.rejects(run(pds, { tiles: undefined }), /--place, --signpost, --track or --video/);
   assert.equal(pds.calls.length, 0);
 });
 

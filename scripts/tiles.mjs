@@ -4,6 +4,7 @@
 //   place-renderer     "Places", the place renderer: one place record as a postcard, for Raku (PLACE_TILES; --place)
 //   signpost-renderer  "Signposts", the signpost renderer: where one exit leads, for Raku (SIGNPOST_TILES; --signpost)
 //   track-renderer     "Tracks", the track renderer: one song, played in a look, for Raku (TRACK_TILES; --track)
+//   video-renderer     "Videos", the video renderer: one video, its MUXL pieces streamed, for Raku (VIDEO_TILES; --video)
 // The records they show (places, signposts and their two lexicons) stay with the maze and Winter Forest in maze-tiles.
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname, extname } from 'node:path';
@@ -77,8 +78,28 @@ export const TRACK_TILES = {
   },
 };
 
+// The video renderer (claude/muxl-concert-plan.md): one video record (cafe.thunderbird.video.track, from
+// pyxorium/video-tracks) whose media is stored as MUXL pieces, each a blob of the record. It asks its host for each
+// piece as it's needed ({ piece }), checks it against its address and streams it; Listen only fetches just the sound.
+// Raku pins it for video records. Published on its own with publish.mjs --video.
+export const VIDEO_TILES = {
+  'video-renderer': {
+    name: 'Videos',
+    description: "Plays a video (a cafe.thunderbird.video.track record) stored as MUXL pieces: it fetches only the seconds you watch, checks each piece against its address as it arrives, and can play just the sound. Credits and links come from the record. Raku opens this when you open a video's address.",
+    sizing: { width: 960, height: 540 },
+    folder: 'video/tile',
+    files: ['index.html', 'video.css', 'video.js', 'view.js', 'cid.js'],
+    cards: ['icon.png', 'banner.png'],
+    icon: '/icon.png',
+    screenshot: '/banner.png',
+    cardArt: 'python video\\dev\\card_art.py (Pillow), which writes both pictures into video\\tile\\',
+    generator: 'Videos',
+    renderer: 'cafe.thunderbird.video.track',
+  },
+};
+
 // Each publish.mjs option and its tiles.
-export const KINDS = { '--place': PLACE_TILES, '--signpost': SIGNPOST_TILES, '--track': TRACK_TILES };
+export const KINDS = { '--place': PLACE_TILES, '--signpost': SIGNPOST_TILES, '--track': TRACK_TILES, '--video': VIDEO_TILES };
 
 // The Foundry's one fixed type per kind of file (web-tile-foundry/src/core/fileset.js CONTENT_TYPES).
 export const PUBLISH_TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.json': 'application/json' };

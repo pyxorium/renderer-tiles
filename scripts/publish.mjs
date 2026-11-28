@@ -5,7 +5,7 @@
 //   node scripts/publish.mjs --track --dry-run   show what would be published; ask nothing, write nothing
 //   node scripts/publish.mjs --track             publish Tracks if it isn't published yet
 //   node scripts/publish.mjs --track --again     publish it again, as a new record (a new address), after a change
-//   --place for Places and --signpost for Signposts the same way
+//   --place for Places, --signpost for Signposts and --video for Videos the same way
 //
 // Each publishes one tile, nothing else (the place and signpost records and their lexicons are published from
 // maze-tiles). It shows what will be published, asks for a thunderbird.cafe app password (hidden as you type) and once
@@ -56,7 +56,7 @@ export async function runPublish({ fetchImpl = fetch, ask, askHidden, log = cons
   readPublished = () => (existsSync(PUBLISHED_FILE) ? JSON.parse(readFileSync(PUBLISHED_FILE, 'utf8')) : {}),
   writePublished = (o) => writeFileSync(PUBLISHED_FILE, JSON.stringify(o, null, 2) + '\n'),
   now = () => new Date().toISOString() }) {
-  if (!tiles) throw new Error('Say which renderer to publish: --place, --signpost or --track.');
+  if (!tiles) throw new Error('Say which renderer to publish: --place, --signpost, --track or --video.');
   // A tile's id is also its heading in published.json, so it may never be one of the file's own headings (Nov 6: a
   // tile named "places" overwrote the place records' bookkeeping).
   const taken = Object.keys(tiles).filter((id) => RESERVED_KEYS.includes(id));
@@ -140,7 +140,7 @@ function makeAsk() {
 // Which renderer the command line names (exactly one).
 export function kindOf(args) {
   const named = Object.keys(KINDS).filter((k) => args.includes(k));
-  if (named.length !== 1) throw new Error('Say which renderer to publish, one at a time: --place, --signpost or --track.');
+  if (named.length !== 1) throw new Error('Say which renderer to publish, one at a time: --place, --signpost, --track or --video.');
   return KINDS[named[0]];
 }
 

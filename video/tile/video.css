@@ -1,0 +1,110 @@
+/* video.css: the video renderer ("Videos", claude/muxl-concert-plan.md). The video fills the frame on black; the title
+   top left and the controls along the bottom fade while it plays (the squirrel tile's way). The progress bar is made of
+   the video's seconds, each lit once its pieces have been checked against their addresses. Raku's own buttons sit top
+   right in a tile post's slot, so that corner is left clear. The states without a video use the travel pages' cream
+   (the :root line is the same as the other renderers': test/video.test.mjs checks). */
+:root { --bg: #eee7d7; --ink: #2f2a26; --soft: #6b6157; --card: #fbf8f1; --line: #d8ccb2; --accent: #4260b0; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); }
+body { font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.v [hidden] { display: none !important; }
+.v { box-sizing: border-box; }
+.v button { font: inherit; cursor: pointer; }
+.v button:focus-visible, .v input:focus-visible { outline: 3px solid #ffd28a; outline-offset: 1px; }
+
+/* Without a video: what this is. */
+.v[data-state="waiting"], .v[data-state="nohost"], .v[data-state="notvideo"] { max-width: 760px; margin: 0 auto; padding: 40px 18px; }
+.v .wait, .v .small { color: var(--soft); }
+.v h1 { margin: 0 0 8px; font-size: 28px; overflow-wrap: anywhere; }
+.v .small { margin-top: 14px; font-size: 14px; }
+.v a { color: var(--accent); }
+
+/* The video. */
+.v[data-state="video"] { position: fixed; inset: 0; background: #000; color: #fff; overflow: hidden; }
+.stage { position: absolute; inset: 0; }
+#video, .poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.poster { pointer-events: none; }
+.v.started:not(.listen) .poster { display: none; }
+.veil { position: absolute; inset: 0; pointer-events: none; }
+
+/* The looks: CSS filters on the video and the poster; Polaroid and Noir add a vignette (as the squirrel tile). */
+.v.look-bw #video, .v.look-bw .poster, .sw.look-bw { filter: grayscale(1) contrast(1.05); }
+.v.look-sepia #video, .v.look-sepia .poster, .sw.look-sepia { filter: sepia(0.85) contrast(1.05) brightness(0.97); }
+.v.look-polaroid #video, .v.look-polaroid .poster, .sw.look-polaroid { filter: sepia(0.28) saturate(0.85) contrast(0.88) brightness(1.08) hue-rotate(-6deg); }
+.v.look-polaroid .veil, .sw.look-polaroid::after { background: linear-gradient(rgba(255, 236, 200, 0.1), rgba(255, 236, 200, 0.1)), radial-gradient(ellipse at center, transparent 55%, rgba(40, 25, 10, 0.38)); }
+.v.look-noir #video, .v.look-noir .poster, .sw.look-noir { filter: grayscale(1) contrast(1.6) brightness(0.88); }
+.v.look-noir .veil, .sw.look-noir::after { background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, 0.55)); }
+
+/* The title, top left (the top right is the host's). */
+.titlebox { position: absolute; left: 0; top: 0; right: 96px; padding: 12px 16px 26px; background: linear-gradient(rgba(0, 0, 0, 0.55), transparent); transition: opacity .4s; pointer-events: none; }
+.titlebox b { display: block; font-size: 18px; line-height: 1.25; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); overflow-wrap: anywhere; }
+.titlebox span { display: block; font-size: 13px; opacity: 0.9; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); }
+.v.listen .titlebox::after { content: "Listening only: the sound, without the picture"; display: block; margin-top: 4px; font-size: 12px; color: #ffd28a; }
+
+.big { position: absolute; left: 50%; top: 50%; width: 76px; height: 76px; margin: -38px 0 0 -38px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.85); background: rgba(0, 0, 0, 0.45); color: #fff; font-size: 30px; line-height: 1; padding-left: 6px; }
+.v.started .big { display: none; }
+
+/* The controls. */
+.bar { position: absolute; left: 0; right: 0; bottom: 0; padding: 30px 12px 10px; background: linear-gradient(transparent, rgba(0, 0, 0, 0.7)); transition: opacity .4s; }
+.v.idle .bar, .v.idle .titlebox { opacity: 0; }
+.v.idle { cursor: none; }
+.row { display: flex; align-items: center; gap: 8px; }
+.ctl { flex: none; min-width: 34px; height: 30px; padding: 0 8px; border-radius: 7px; border: 1px solid rgba(255, 255, 255, 0.28); background: rgba(0, 0, 0, 0.35); color: #fff; font-size: 13px; }
+.ctl[aria-pressed="true"] { background: #ffd28a; border-color: #ffd28a; color: #1b1406; font-weight: 600; }
+.ctl.icon { font-size: 15px; padding: 0; width: 34px; }
+.time { flex: none; font-variant-numeric: tabular-nums; font-size: 13px; min-width: 76px; text-align: center; }
+.spacer { flex: 1; }
+
+/* The progress bar: one cell per second, lit once its pieces are checked (bright: picture and sound; dim: sound only);
+   the part played drawn over it; a range input on top takes clicks and drags. */
+.seconds { position: relative; flex: 1; height: 26px; margin: 0 0 8px; }
+.cells { position: absolute; left: 0; right: 0; top: 9px; height: 8px; display: flex; gap: 1px; border-radius: 4px; overflow: hidden; background: rgba(255, 255, 255, 0.12); }
+.cell { flex: 1; background: rgba(255, 255, 255, 0.16); transition: background-color .25s; }
+.cell.loading { background: rgba(210, 153, 34, 0.75); }
+.cell.aud { background: rgba(63, 185, 80, 0.45); }
+.cell.ok { background: rgba(63, 185, 80, 0.85); }
+.cell.bad { background: #e5534b; }
+.played { position: absolute; left: 0; top: 9px; height: 8px; width: var(--p, 0%); border-radius: 4px 0 0 4px; background: rgba(255, 255, 255, 0.55); mix-blend-mode: screen; pointer-events: none; }
+.knob { position: absolute; top: 5px; left: var(--p, 0%); width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); pointer-events: none; }
+.seek { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.note { margin: 4px 2px 0; font-size: 12.5px; color: rgba(255, 255, 255, 0.85); min-height: 1em; }
+.note.problem { color: #ffb3ad; }
+
+/* The look menu, above the gear. */
+.lookmenu { position: absolute; z-index: 5; right: 12px; bottom: 92px; width: 196px; padding: 6px; box-sizing: border-box; border-radius: 10px; background: rgba(18, 16, 14, 0.78); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.18); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35); }
+.lookmenu h2 { margin: 2px 6px 6px; font-size: 12px; font-weight: 600; color: rgba(255, 255, 255, 0.7); }
+.lookmenu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 6px; border: 0; border-radius: 6px; background: none; color: #fff; text-align: left; font-size: 13px; }
+.lookmenu button:hover, .lookmenu button:focus-visible { background: rgba(255, 255, 255, 0.12); }
+.lookmenu .sw { position: relative; flex: none; width: 34px; height: 20px; border-radius: 3px; background-size: cover; background-position: center; background-color: #333; overflow: hidden; }
+.lookmenu .sw::after { content: ""; position: absolute; inset: 0; }
+.lookmenu .tick { margin-left: auto; visibility: hidden; }
+.lookmenu button[aria-checked="true"] .tick { visibility: visible; }
+
+/* The credits, over the video (the title and controls hidden under it). */
+.v.credits-open .titlebox, .v.credits-open .bar, .v.credits-open .big { visibility: hidden; }
+.sheet { position: absolute; inset: 0; z-index: 6; overflow: auto; background: rgba(12, 11, 10, 0.93); color: #f1ece3; padding: 18px 20px 24px; box-sizing: border-box; }
+.sheet .head { display: flex; align-items: flex-start; gap: 12px; }
+.sheet h2 { margin: 0; font-size: 20px; line-height: 1.25; flex: 1; overflow-wrap: anywhere; }
+.sheet .sub { margin: 4px 0 12px; color: rgba(241, 236, 227, 0.75); font-size: 14px; }
+.sheet dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0 0 14px; font-size: 14px; }
+.sheet dt { color: rgba(241, 236, 227, 0.65); }
+.sheet dd { margin: 0; overflow-wrap: anywhere; }
+.sheet .links { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; }
+.sheet .links button { padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.35); background: rgba(255, 255, 255, 0.08); color: #fff; font-size: 14px; }
+.sheet .links button small { opacity: 0.7; margin-left: 6px; }
+.sheet .fine { font-size: 12.5px; color: rgba(241, 236, 227, 0.6); margin: 6px 0 0; }
+
+/* Small frames (a tile post's slot in Raku, a phone): tighter, the title smaller, the words on buttons shorter. */
+.v.is-small .titlebox { padding: 8px 10px 18px; right: 84px; }
+.v.is-small .titlebox b { font-size: 14px; }
+.v.is-small .titlebox span { font-size: 11.5px; }
+.v.is-small .bar { padding: 18px 8px 6px; }
+.v.is-small .ctl { height: 26px; min-width: 28px; font-size: 12px; padding: 0 6px; }
+.v.is-small .ctl.icon { width: 28px; }
+.v.is-small .time { min-width: 0; font-size: 12px; }
+.v.is-small .long { display: none; }
+.v:not(.is-small) .short { display: none; }
+.v.is-small .note { display: none; }
+.v.is-small .big { width: 58px; height: 58px; margin: -29px 0 0 -29px; font-size: 24px; }
+.v.is-small .lookmenu { bottom: 64px; width: 172px; }
+.v.is-small .lookmenu h2 { display: none; }
+.v.is-tiny .volume { display: none; }

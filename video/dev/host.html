@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Video renderer: stand-in host</title>
+<style>
+  body { margin: 0; font: 14px/1.4 system-ui, sans-serif; background: #2b2b2b; color: #eee; }
+  header { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; padding: 10px 14px; }
+  header b { color: #fff; }
+  button { font: inherit; color: #eee; background: #444; border: 1px solid #5a5a5a; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  button[aria-pressed="true"] { background: #ffd28a; color: #1b1406; border-color: #ffd28a; }
+  .wrap { display: flex; gap: 14px; padding: 0 14px 14px; flex-wrap: wrap; align-items: flex-start; }
+  iframe { flex: 0 0 960px; height: 540px; border: 0; border-radius: 8px; background: #fff; }
+  iframe.phone { flex: 0 0 390px; height: 700px; }
+  /* a tile post's slot in Raku (16:9 in the card) */
+  iframe.slot { flex: 0 0 438px; height: 246px; }
+  iframe.slotphone { flex: 0 0 358px; height: 201px; }
+  #log { flex: 1 1 260px; margin: 0; background: #1d1d1d; border-radius: 8px; padding: 10px; white-space: pre-wrap; font: 12px ui-monospace, monospace; min-height: 200px; max-height: 540px; overflow: auto; }
+</style>
+</head>
+<body>
+<header>
+  <span><b>Send</b></span>
+  <button data-s="concert" aria-pressed="true">The concert</button>
+  <button data-s="webm">Another format</button>
+  <button data-s="song">Not a video</button>
+  <button data-s="none">Nothing (no host)</button>
+  <span><b>Pieces</b></span>
+  <button data-a="send" aria-pressed="true">Send</button>
+  <button data-a="bad5">Second 6 changed</button>
+  <button data-a="lost5">Second 6 not found</button>
+  <button data-a="not-allowed">Refuse</button>
+  <button data-a="silent">No answer</button>
+  <span><b>Width</b></span>
+  <button data-w="wide" aria-pressed="true">Computer</button>
+  <button data-w="phone">Phone</button>
+  <button data-w="slot">Post slot</button>
+  <button data-w="slotphone">Post slot (phone)</button>
+</header>
+<div class="wrap"><iframe id="f" title="The tile"></iframe><pre id="log"></pre></div>
+<script type="module">
+const P = 'did:plc:rqbqpaaluty5v47jwciowpik';
+const KIND = 'cafe.thunderbird.video.track';
+const q = new URLSearchParams(location.search);
+const slow = ['lat', 'bw'].filter((k) => q.get(k)).map((k) => `${k}=${q.get(k)}`).join('&');
+const frame = document.getElementById('f');
+const log = document.getElementById('log');
+const say = (s) => { log.textContent += s + '\n'; log.scrollTop = log.scrollHeight; };
+let sample = q.get('s') || 'concert', pieceMode = q.get('a') || 'send';
+const choose = (attr, v) => { for (const b of document.querySelectorAll(`[data-${attr}]`)) b.setAttribute('aria-pressed', String(b.dataset[attr] === v)); };
+choose('s', sample); choose('a', pieceMode);
+for (const b of document.querySelectorAll('[data-s]')) b.onclick = () => { sample = b.dataset.s; choose('s', sample); load(); };
+for (const b of document.querySelectorAll('[data-a]')) b.onclick = () => { pieceMode = b.dataset.a; choose('a', pieceMode); load(); };
+for (const b of document.querySelectorAll('[data-w]')) b.onclick = () => { for (const c of ['phone', 'slot', 'slotphone']) frame.classList.toggle(c, b.dataset.w === c); choose('w', b.dataset.w); };
+if (q.get('w')) for (const c of ['phone', 'slot', 'slotphone']) frame.classList.toggle(c, q.get('w') === c);
+const record = await (await fetch('/record.json')).json().catch(() => null);
+if (!record) say('No video media: run "npm run media" in C:\\thunderbird-cafe\\video-tracks (or set VIDEO_DIR).');
+const listed = new Set(record ? JSON.stringify(record).match(/"\$link":"(b[a-z2-7]+)"/g).map((m) => m.slice(9, -1)) : []);
+const sixth = record ? record.muxl.tracks.map((t) => t.segments[5].ref.$link) : [];
+const payloadOf = (name) => {
+  if (name === 'song') return { uri: `at://${P}/cafe.thunderbird.audio.track/3n2caaaaaaaag`, cid: 'bafyreisong', did: P, handle: 'pyxorium.com', collection: 'cafe.thunderbird.audio.track', rkey: '3n2caaaaaaaag', value: { title: 'A song' } };
+  const value = name === 'webm' ? { ...record, format: 'webm', muxl: undefined } : record;
+  return { uri: `at://${P}/${KIND}/3n3cvideoaaa2`, cid: 'bafyreisamplerecordaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', did: P, handle: 'pyxorium.com', collection: KIND, rkey: '3n3cvideoaaa2', value };
+};
+const send = (payload, transfer) => frame.contentWindow.postMessage({ action: 'tiles-protocol-down-data-payload', payload }, '*', transfer || []);
+window.__asked = [];
+window.__links = [];
+window.__timeline = [];
+const t0 = () => Math.round(performance.now());
+addEventListener('message', async (e) => {
+  if (e.source !== frame.contentWindow) return;
+  const d = e.data || {};
+  if (d.action === 'tiles-protocol-up-data-ready') {
+    say('tile is ready');
+    if (sample !== 'none' && record) { send(payloadOf(sample)); say(`sent the ${sample} record`); }
+    return;
+  }
+  if (d.action !== 'tiles-protocol-up-data-payload') return;
+  const p = d.payload || {};
+  window.__asked.push(p);
+  if (typeof p.piece === 'string') {
+    window.__timeline.push({ cid: p.piece, asked: t0() });
+    if (pieceMode === 'silent') return;
+    if (!listed.has(p.piece) || pieceMode === 'not-allowed') { send({ gotPiece: p.piece, from: p.from, error: 'not-allowed' }); say(`refused ${p.piece.slice(-8)}`); return; }
+    if (pieceMode === 'lost5' && sixth.includes(p.piece)) { send({ gotPiece: p.piece, from: p.from, error: 'not-found' }); say('answered: not-found (second 6)'); return; }
+    const res = await fetch(`/files/${p.piece}${slow ? `?${slow}` : ''}`);
+    const bytes = await res.arrayBuffer();
+    if (pieceMode === 'bad5' && sixth.includes(p.piece)) new Uint8Array(bytes)[200] ^= 1;
+    const entry = window.__timeline.find((x) => x.cid === p.piece && !x.sent);
+    if (entry) entry.sent = t0();
+    const kb = Math.round(bytes.byteLength / 1024);
+    send({ gotPiece: p.piece, from: p.from, bytes }, [bytes]);
+    say(`piece ${p.piece.slice(-8)} (${kb} KB)`);
+    return;
+  }
+  if (typeof p.picture === 'string') {
+    const res = await fetch(`/files/${p.picture}`);
+    if (!res.ok) { send({ gotPicture: p.picture, from: p.from, error: 'not-found' }); return; }
+    const bytes = await res.arrayBuffer();
+    send({ gotPicture: p.picture, from: p.from, type: 'image/jpeg', bytes }, [bytes]);
+    say('sent the poster');
+    return;
+  }
+  if (typeof p.link === 'string') { window.__links.push(p.link); say(`tile asks to open ${p.link} (Raku asks the viewer first)`); return; }
+  say('tile asks: ' + JSON.stringify(p));
+});
+function load() { log.textContent = ''; window.__asked = []; window.__links = []; window.__timeline = []; frame.src = '/tile/index.html?' + Date.now(); }
+load();
+</script>
+</body>
+</html>

@@ -1,10 +1,10 @@
 # Renderer tiles
 
 Web tiles that Raku uses to show a record that isn't a tile: **Places** (a place, `cafe.thunderbird.way.place`),
-**Signposts** (a signpost, `cafe.thunderbird.way.signpost`) and **Tracks** (a song, `cafe.thunderbird.audio.track` or
-`fm.plyr.track`). Raku pins each one by its record (`RENDERERS` in `C:\thunderbird-cafe\raku\src\config.js`) and
+**Signposts** (a signpost, `cafe.thunderbird.way.signpost`), **Tracks** (a song, `cafe.thunderbird.audio.track` or
+`fm.plyr.track`) and **Videos** (a video, `cafe.thunderbird.video.track`, since Nov 27). Raku pins each one by its record (`RENDERERS` in `C:\thunderbird-cafe\raku\src\config.js`) and
 opens it in a tab for an address of that kind, handing it the record over the tiles spec's data protocol (tp-data). All
-three are published from thunderbird.cafe. Background: claude/raku-renderer-tiles-plan.md in the Foundry project, and
+four are published from thunderbird.cafe. Background: claude/raku-renderer-tiles-plan.md in the Foundry project, and
 the blog post *Renderer tiles* (https://thunderbird.cafe/blog/renderer-tiles).
 
 They moved here from `C:\thunderbird-cafe\maze-tiles` on Nov 20 2026 (from maze-tiles `4e702f1`; their history is
@@ -14,22 +14,22 @@ signpost records, the two ways lexicons (`lexicons\`) and the way pages.
 
 ## The folders
 
-- `place\`, `signpost\`, `track\`: each renderer, with `tile\` (the tile as published) and `dev\` (its stand-in host
+- `place\`, `signpost\`, `track\`, `video\`: each renderer, with `tile\` (the tile as published) and `dev\` (its stand-in host
   and card pictures). Below, one section each.
 - `scripts\` `publish.mjs` publishes one renderer (`tiles.mjs` says what goes into each); `lib\` holds the
   record-building code (copied from maze-tiles, which copied it from rooms-lab: the Foundry's own).
 - `test\` `npm test`: each renderer's view, page and publishing (`place.test.mjs`, `signpost.test.mjs`,
-  `track.test.mjs`), and publishing in general (`publish.test.mjs`), against a stand-in server (`fake-pds.mjs`).
-  `test\browser\check_place.mjs`, `check_signpost.mjs` and `check_track.mjs` try every state through each stand-in
-  host (they need Playwright; run in the build chat). Raku's `test\browser\check_renderer.py` runs all three through
-  the real tile loader.
+  `track.test.mjs`, `video.test.mjs`), and publishing in general (`publish.test.mjs`), against a stand-in server (`fake-pds.mjs`).
+  `test\browser\check_place.mjs`, `check_signpost.mjs`, `check_track.mjs` and `check_video.mjs` try every state
+  through each stand-in host (they need Playwright; run in the build chat). Raku's `test\browser\check_renderer.py`
+  runs the first three through the real tile loader, and `check_video_renderer.py` Videos.
 - `published.json`: what was published (each renderer's address and record CID: the values in Raku's pins).
 
 No packages: Node 22 is enough for `npm test`, the dev servers and publishing.
 
 ## Publishing
 
-In `C:\thunderbird-cafe\renderer-tiles`, always naming the renderer (`--place`, `--signpost` or `--track`):
+In `C:\thunderbird-cafe\renderer-tiles`, always naming the renderer (`--place`, `--signpost`, `--track` or `--video`):
 
 ```
 node scripts/publish.mjs --track --dry-run
@@ -219,3 +219,56 @@ node scripts/publish.mjs --track
 
 From thunderbird.cafe. At the end it prints the pin for Raku's `RENDERERS`, for both song kinds
 (`'cafe.thunderbird.audio.track', 'fm.plyr.track'`).
+
+## Videos (`video\`): the video renderer
+
+A tile that plays one video record (`cafe.thunderbird.video.track`, from pyxorium/video-tracks: the record's fields,
+its MUXL media and the scripts that make and publish it live there). Raku opens it when someone opens a video's own
+address, or presses Play here on a video post. Plan: claude/muxl-concert-plan.md in the Foundry project; the player
+comes from the squirrel tile's (`C:\thunderbird-cafe\muxl-tile`, claude/muxl-publish-plan.md,
+claude/video-tile-lessons.md). The first video: Waxahatchee, "Fruits of My Labor", live at Red Rocks (Nov 27).
+
+- **The media:** MUXL pieces, one per second and track, each a blob of the record. A renderer has no network of its
+  own, so it asks its host for each file: `{ piece: "<blob cid>", from: "<record>" }`, answered `{ gotPiece, from,
+  bytes }` or `{ gotPiece, from, error }`. Raku fetches only files the record lists in its `muxl` section, from its
+  account's server, each checked against its address; the tile checks each one again before using it. The poster
+  (the first frame) comes through `{ picture }`, as Places' card. It only ever sends `piece`, `picture` and `link`.
+- **Playing:** `index.json` and both init segments are asked for as the record comes (with the poster), nothing else
+  before ▶. On play and after a jump, the second being watched and the next two (picture and sound) are asked for
+  together; Media Source Extensions (ManagedMediaSource on iPhones); the watchdog for Chrome's and Edge's stall; a
+  piece the host couldn't fetch is asked for again after 1.5 s while it's still needed. Bytes aren't kept once
+  appended (a second the browser let go of is asked for again; Raku's kept files may answer).
+- **The progress bar is the seconds:** one cell each, bright green once its picture and sound are checked, dim green
+  for sound only, amber while arriving, red for a piece that didn't match its address (not played). Click or drag
+  to jump.
+- **Listen only (🎧):** only the sound pieces (about a tenth of the bytes), four seconds ahead, the poster in the
+  picture's place; the time carries over both ways.
+- **Looks:** the gear's menu, the squirrel tile's five CSS looks (Original, Black & white, Sepia, Polaroid, Noir),
+  remembered in the tile's own storage. WebGL looks are a later update.
+- **Credits:** over the video: band, the record's credits (names only), where, when, how it was recorded, the tour;
+  the record's links as buttons, each asked of the host (`{ link }`; Raku shows it in its link message first: a tile
+  can't open pages itself); "Shared by @handle".
+- **Small frames** (a tile post's slot, a phone: under 560 px wide or 360 px high): tighter controls, the title
+  smaller; the top right left clear for the host's own buttons. The title and controls fade while it plays.
+- **The look of the page:** black around the video; the states without one (waiting, opened alone, not a video, a
+  format it doesn't play yet) in the travel pages' cream, `video\tile\video.css`'s `:root` line the same as
+  `place\tile\place.css`'s (`test\video.test.mjs` checks).
+- **The card pictures:** a play button and the seconds bar (no footage: it plays anyone's video), drawn by
+  `python video\dev\card_art.py` (Pillow) into `video\tile\`.
+- `npm run dev-video`: http://127.0.0.1:5250/ holds the tile in a stand-in host that plays the concert's real media
+  from `C:\thunderbird-cafe\video-tracks\videos\waxahatchee-fruits` (made there with `npm run media`; another
+  folder with `VIDEO_DIR`), answers its requests as Raku does, can refuse, lose or change a piece, sends other
+  records, and logs what the tile asks; `?lat=300&bw=1250000` slows it to the owner's connection.
+- `test\video.test.mjs` (part of `npm test`); `test\browser\check_video.mjs` through the stand-in host, including
+  frame by frame at the owner's speed (run in the build chat); Raku's `test\browser\check_video_renderer.py` through
+  the real loader.
+
+**Publishing it** (`--video`: this tile only), in `C:\thunderbird-cafe\renderer-tiles`:
+
+```
+node scripts/publish.mjs --video --dry-run
+node scripts/publish.mjs --video
+```
+
+Then its address and record CID go in `RENDERERS['cafe.thunderbird.video.track']` in
+`C:\thunderbird-cafe\raku\src\config.js` (the script prints them) before Raku is pushed.
