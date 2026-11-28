@@ -131,13 +131,13 @@ test('index.json is checked against the record: the same pieces in the same orde
   assert.equal(checkIndex(odd, m).tracks[0].mime, 'video/mp4; codecs="avc1.64001f"', 'an odd mime string is replaced by one made from the record');
 });
 
-test('the player\'s rules: the second a time is in, what to have in hand (watched + 2; Listen only + 4), which tracks', () => {
+test('the player\'s rules: the second a time is in, what to have in hand (watched + 2 to start, + 5 once it is in; Listen only + 4), which tracks', () => {
   const starts = Array.from({ length: N }, (_, g) => g);
   assert.equal(pieceAt(starts, 0), 0);
   assert.equal(pieceAt(starts, 0.99), 0);
   assert.equal(pieceAt(starts, 1), 1);
   assert.equal(pieceAt(starts, 79.9), 79);
-  assert.deepEqual(AHEAD, { watch: 2, listen: 4 });
+  assert.deepEqual(AHEAD, { watch: 2, listen: 4, grown: 5 });
   assert.deepEqual(wanted(0, N, AHEAD.watch), [0, 1, 2]);
   assert.deepEqual(wanted(78, N, AHEAD.watch), [78, 79]);
   assert.deepEqual(wanted(10, N, AHEAD.listen), [10, 11, 12, 13, 14]);

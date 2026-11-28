@@ -34,7 +34,9 @@ export const LOOKS = Object.freeze([
 // How many seconds after the one being watched are asked for, together with it (claude/video-tile-lessons.md: the
 // piece being watched and the next two, asked for together, kept the squirrel smooth on the owner's connection).
 // Listen only fetches only the small audio pieces, so it looks further ahead.
-export const AHEAD = Object.freeze({ watch: 2, listen: 4 });
+// Once the second being watched is in, both look five ahead: a slow answer from the account's server now and then ate
+// the short lead and the picture skipped (live test, Nov 28); the short lead stays for a quick start and a quick jump.
+export const AHEAD = Object.freeze({ watch: 2, listen: 4, grown: 5 });
 export const PIECE_MAX_BYTES = 1024 * 1024;       // the most the publish script sends per file (and Raku fetches)
 export const PICTURE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
 

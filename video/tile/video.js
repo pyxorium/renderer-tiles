@@ -342,7 +342,9 @@ function tick() {
   const s = session;
   if (!s || s.failed || !root.classList.contains('started')) return;
   const g = pieceAt(times.starts, els.video.currentTime);
-  for (const k of wanted(g, view.muxl.gops, AHEAD[s.mode])) ensure(s, k);
+  // Once the second being watched is in, look further ahead (a slow answer now and then eats a short lead).
+  const ahead = s.appended.has(g) ? AHEAD.grown : AHEAD[s.mode];
+  for (const k of wanted(g, view.muxl.gops, ahead)) ensure(s, k);
 }
 
 // The watchdog: Chrome and Edge sometimes don't start again after waiting for data, even with the next piece in; a

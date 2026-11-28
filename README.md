@@ -236,13 +236,14 @@ claude/video-tile-lessons.md). The first video: Waxahatchee, "Fruits of My Labor
   (the first frame) comes through `{ picture }`, as Places' card. It only ever sends `piece`, `picture` and `link`.
 - **Playing:** `index.json` and both init segments are asked for as the record comes (with the poster), nothing else
   before ▶. On play and after a jump, the second being watched and the next two (picture and sound) are asked for
-  together; Media Source Extensions (ManagedMediaSource on iPhones); the watchdog for Chrome's and Edge's stall; a
+  together, and once the watched second is in, the next five (a slow answer from the account's server now and then
+  ate the shorter lead and the picture skipped); Media Source Extensions (ManagedMediaSource on iPhones); the watchdog for Chrome's and Edge's stall; a
   piece the host couldn't fetch is asked for again after 1.5 s while it's still needed. Bytes aren't kept once
   appended (a second the browser let go of is asked for again; Raku's kept files may answer).
 - **The progress bar is the seconds:** one cell each, bright green once its picture and sound are checked, dim green
   for sound only, amber while arriving, red for a piece that didn't match its address (not played). Click or drag
   to jump.
-- **Listen only (🎧):** only the sound pieces (about a tenth of the bytes), four seconds ahead, the poster in the
+- **Listen only (🎧):** only the sound pieces (about a tenth of the bytes), four seconds ahead (five once playing), the poster in the
   picture's place; the time carries over both ways.
 - **Looks:** the gear's menu, the squirrel tile's five CSS looks (Original, Black & white, Sepia, Polaroid, Noir),
   remembered in the tile's own storage. WebGL looks are a later update.

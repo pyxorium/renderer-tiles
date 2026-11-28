@@ -134,11 +134,11 @@ test('no tile may be called after one of published.json\'s own headings; publish
   /can't be called "places"/);
 });
 
-test('the published.json in this folder: the three renderers, each under its own heading, from thunderbird.cafe; nothing else', () => {
+test('the published.json in this folder: the four renderers, each under its own heading, from thunderbird.cafe; nothing else', () => {
   const pj = JSON.parse(readFileSync(join(ROOT, 'published.json'), 'utf8'));
-  assert.deepEqual(Object.keys(pj).sort(), ['accounts', 'place-renderer', 'signpost-renderer', 'track-renderer']);
+  assert.deepEqual(Object.keys(pj).sort(), ['accounts', 'place-renderer', 'signpost-renderer', 'track-renderer', 'video-renderer']);
   assert.deepEqual(pj.accounts, { 'thunderbird.cafe': ACCOUNT });
-  for (const id of ['place-renderer', 'signpost-renderer', 'track-renderer']) {
+  for (const id of ['place-renderer', 'signpost-renderer', 'track-renderer', 'video-renderer']) {
     assert.match(pj[id].uri, new RegExp(`^at://${ACCOUNT}/ing\\.dasl\\.masl/`), id);
     assert.match(pj[id].cid, /^bafyrei/, id);
   }
