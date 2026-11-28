@@ -228,6 +228,7 @@ address, or presses Play here on a video post. Plan: claude/muxl-concert-plan.md
 comes from the squirrel tile's (`C:\thunderbird-cafe\muxl-tile`, claude/muxl-publish-plan.md,
 claude/video-tile-lessons.md). The first video: Waxahatchee, "Fruits of My Labor", live at Red Rocks (Nov 27).
 
+- **The length** comes from `durationMs` (as Streamplace's `place.stream.video`).
 - **The media:** MUXL pieces, one per second and track, each a blob of the record. A renderer has no network of its
   own, so it asks its host for each file: `{ piece: "<blob cid>", from: "<record>" }`, answered `{ gotPiece, from,
   bytes }` or `{ gotPiece, from, error }`. Raku fetches only files the record lists in its `muxl` section, from its
@@ -245,7 +246,9 @@ claude/video-tile-lessons.md). The first video: Waxahatchee, "Fruits of My Labor
   picture's place; the time carries over both ways.
 - **Looks:** the gear's menu, the squirrel tile's five CSS looks (Original, Black & white, Sepia, Polaroid, Noir),
   remembered in the tile's own storage. WebGL looks are a later update.
-- **Credits:** over the video: band, the record's credits (names only), where, when, how it was recorded, the tour;
+- **Credits:** over the video, worded for any event (a concert, a talk): "By" (the record's `artist`), the record's credits
+  (names only), where, when, how it was recorded, "Part of" (its `album`: a show, tour, series or event), its rights
+  (`contentRights`: the credit line, the license by name, the copyright);
   the record's links as buttons, each asked of the host (`{ link }`; Raku shows it in its link message first: a tile
   can't open pages itself); "Shared by @handle".
 - **Small frames** (a tile post's slot, a phone: under 560 px wide or 360 px high): tighter controls, the title

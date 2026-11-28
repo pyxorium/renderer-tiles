@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   readVideo, readMuxl, checkIndex, pieceAt, wanted, tracksFor, readPieceAnswer, readPicture, firstLook, sizeLine, safeLink,
-  longDate, formatTime, formatSize, VIDEO, LOOKS, AHEAD, PIECE_ERRORS, PIECE_MAX_BYTES,
+  longDate, formatTime, formatSize, licenseName, VIDEO, LOOKS, AHEAD, PIECE_ERRORS, PIECE_MAX_BYTES,
 } from '../video/tile/view.js';
 import { runPublish, ACCOUNT, RESERVED_KEYS } from '../scripts/publish.mjs';
 import { VIDEO_TILES, ROOT } from '../scripts/tiles.mjs';
@@ -33,11 +33,12 @@ const muxl = (over = {}) => ({
 });
 const concert = (value = {}, over = {}) => ({
   uri: `at://${P}/${VIDEO}/3n3cvideoaaa2`, cid: 'bafyreirecord', did: P, handle: 'pyxorium.com', collection: VIDEO, rkey: '3n3cvideoaaa2',
-  value: { $type: VIDEO, title: 'Fruits of My Labor', artist: 'Waxahatchee', album: 'Saint Cloud tour', duration: 80, width: 1280, height: 720, format: 'muxl', muxl: muxl(),
+  value: { $type: VIDEO, title: 'Fruits of My Labor', artist: 'Waxahatchee', album: 'Saint Cloud tour', durationMs: 80000, width: 1280, height: 720, format: 'muxl', muxl: muxl(),
     poster: blob(cid('poster'), 67000, 'image/jpeg'), imageBlob: blob(cid('card'), 93000, 'image/jpeg'),
     credits: [{ role: 'Written by', name: 'Lucinda Williams' }, { role: 'Opening for', name: 'Jason Isbell and the 400 Unit' }],
     links: [{ label: 'Waxahatchee', url: 'https://www.waxahatchee.com/' }, { label: 'Red Rocks Amphitheatre', url: 'https://www.redrocksonline.com/' }],
     recording: { date: '2022-05-03', venue: 'Red Rocks Amphitheatre', place: 'Morrison, CO', source: 'A phone in the audience' },
+    tags: ['event:concert', 'lang:en'], contentRights: { creditLine: 'Filmed by @pyxorium.com from the audience' },
     createdAt: '2026-11-28T20:00:00.000Z', ...value }, ...over,
 });
 // index.json as make-media.mjs writes it, for the record above.
@@ -52,8 +53,9 @@ test('the concert: the card\'s lines as the song posts, the one-line name, the c
   assert.equal(v.line, 'Waxahatchee · Red Rocks Amphitheatre, Morrison, CO · May 3, 2022 · 1:20');
   assert.equal(v.oneLine, 'Waxahatchee – Fruits of My Labor (live at Red Rocks Amphitheatre, May 3, 2022)');
   assert.equal(v.by, '@pyxorium.com');
-  assert.deepEqual(v.credits, [['Band', 'Waxahatchee'], ['Written by', 'Lucinda Williams'], ['Opening for', 'Jason Isbell and the 400 Unit'],
-    ['Where', 'Red Rocks Amphitheatre, Morrison, CO'], ['When', 'May 3, 2022'], ['Recorded on', 'A phone in the audience'], ['Tour', 'Saint Cloud tour']]);
+  assert.deepEqual(v.credits, [['By', 'Waxahatchee'], ['Written by', 'Lucinda Williams'], ['Opening for', 'Jason Isbell and the 400 Unit'],
+    ['Where', 'Red Rocks Amphitheatre, Morrison, CO'], ['When', 'May 3, 2022'], ['Recorded on', 'A phone in the audience'], ['Part of', 'Saint Cloud tour'],
+    ['Credit', 'Filmed by @pyxorium.com from the audience']]);
   assert.deepEqual(v.links, [{ label: 'Waxahatchee', href: 'https://www.waxahatchee.com/', host: 'waxahatchee.com' },
     { label: 'Red Rocks Amphitheatre', href: 'https://www.redrocksonline.com/', host: 'redrocksonline.com' }]);
   assert.deepEqual([v.width, v.height, v.duration], [1280, 720, 80]);
@@ -63,6 +65,20 @@ test('the concert: the card\'s lines as the song posts, the one-line name, the c
   assert.equal(v.audioBytes, 620 + 37000 * N);
   assert.equal(v.bytes, 691 + 620 + 37000 * N + Array.from({ length: N }, (_, g) => 400000 + g).reduce((a, b) => a + b, 0));
   assert.equal(sizeLine(v), '33.3 MB to watch · 2.8 MB to listen · fetched a second at a time');
+});
+
+test('any event, not only music: "By" and "Part of"; the length from durationMs; rights from contentRights', () => {
+  const talk = readVideo(concert({ title: 'Why tiles?', artist: 'A. Speaker', album: 'A conference, 2026', durationMs: 1_234_567, credits: [{ role: 'Host', name: 'B. Host' }],
+    recording: { date: '2026-10-01', venue: 'A hall', place: 'Somewhere' }, contentRights: { license: 'place.stream.metadata.contentRights#cc-by_4__0', copyrightYear: 2026, copyrightNotice: '© A. Speaker' } }));
+  assert.deepEqual(talk.credits.slice(0, 2), [['By', 'A. Speaker'], ['Host', 'B. Host']]);
+  assert.ok(talk.credits.some(([k, x]) => k === 'Part of' && x === 'A conference, 2026'));
+  assert.ok(talk.credits.some(([k, x]) => k === 'License' && x === 'CC BY 4.0'));
+  assert.ok(talk.credits.some(([k, x]) => k === 'Copyright' && x === '© A. Speaker 2026'));
+  assert.equal(talk.duration, 1234.567);
+  assert.equal(talk.line, 'A. Speaker · A hall, Somewhere · October 1, 2026 · 20:34');
+  assert.equal(readVideo(concert({ durationMs: undefined, duration: 80 })).duration, 0, 'the old seconds field is not read');
+  assert.equal(licenseName('https://example.org/my-license'), 'https://example.org/my-license');
+  assert.equal(licenseName('place.stream.metadata.contentRights#all-rights-reserved'), 'All rights reserved');
 });
 
 test('links: https only (no javascript:, http: or a user name), at most four; anything else read carefully', () => {

@@ -47,7 +47,7 @@ export function loadVideo(dir = VIDEO_DIR) {
   const size = /^(\d+)x(\d+)/.exec(vt ? vt.detail : '');
   const value = {
     $type: 'cafe.thunderbird.video.track', ...v,
-    duration: Math.round(index.duration), ...(size ? { width: Number(size[1]), height: Number(size[2]) } : {}),
+    durationMs: Math.round(index.duration * 1000), ...(size ? { width: Number(size[1]), height: Number(size[2]) } : {}),
     format: 'muxl',
     muxl: {
       index: add('media/index.json', 'application/json'),

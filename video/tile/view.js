@@ -5,9 +5,10 @@
 // The host (Raku, or any page that speaks the tiles spec's data protocol, tp-data) sends one payload:
 //   { uri, cid, did, handle, collection, rkey, value }
 // value is a cafe.thunderbird.video.track record exactly as stored (lexicon in pyxorium/video-tracks): title, artist,
-// album, duration, width, height, format ("muxl"), muxl { index, header, flat { cid, size }, tracks [{ kind, codec,
+// album, durationMs, width, height, format ("muxl"), muxl { index, header, flat { cid, size }, tracks [{ kind, codec,
 // init, segments }] }, poster, imageBlob, credits [{ role, name }], links [{ label, url }], recording { date, venue,
-// place, … }. Every media file is a blob of the record.
+// place, … }, contentRights { creator, copyrightNotice, copyrightYear, license, creditLine }. Every media file is a
+// blob of the record.
 //
 // A renderer has no network of its own, so it asks the host for each file it needs:
 //   tile → host   { piece: "<blob cid>", from: "<record uri>" }      a media file the record lists (index.json, an init,
@@ -92,6 +93,16 @@ const blobOf = (b, max = Infinity) => {
   return { cid, size };
 };
 
+// Streamplace's license values (place.stream.metadata.contentRights), as people write them.
+const LICENSES = Object.freeze({ 'all-rights-reserved': 'All rights reserved', cc0_1__0: 'CC0 1.0', 'cc-by_4__0': 'CC BY 4.0', 'cc-by-sa_4__0': 'CC BY-SA 4.0',
+  'cc-by-nc_4__0': 'CC BY-NC 4.0', 'cc-by-nc-sa_4__0': 'CC BY-NC-SA 4.0', 'cc-by-nd_4__0': 'CC BY-ND 4.0', 'cc-by-nc-nd_4__0': 'CC BY-NC-ND 4.0' });
+/** A license as people write it: one of Streamplace's values by name, anything else as given (shortened). */
+export function licenseName(l) {
+  if (typeof l !== 'string' || !l.trim()) return '';
+  const m = /^place\.stream\.metadata\.contentRights#([a-z0-9_-]+)$/.exec(l.trim());
+  return m && LICENSES[m[1]] ? LICENSES[m[1]] : str(l, 120);
+}
+
 /** The record's MUXL section, checked, or null when it isn't one this player can use. */
 export function readMuxl(m) {
   if (!m || typeof m !== 'object') return null;
@@ -134,7 +145,8 @@ export function readVideo(payload) {
   const artist = str(v.artist, 200);
   const rec = v.recording && typeof v.recording === 'object' ? v.recording : {};
   const venue = str(rec.venue, 200), place = str(rec.place, 200), when = longDate(rec.date);
-  const duration = Number.isFinite(Number(v.duration)) && Number(v.duration) > 0 ? Number(v.duration) : 0;
+  // the length: durationMs (whole milliseconds, as Streamplace's place.stream.video), in seconds here
+  const duration = Number.isInteger(v.durationMs) && v.durationMs > 0 ? v.durationMs / 1000 : 0;
   const where = [venue && place ? `${venue}, ${place}` : venue || place, when].filter(Boolean).join(' · ');
   // The card's second line (as the song posts): Waxahatchee · Red Rocks Amphitheatre, Morrison, CO · May 3, 2022 · 1:20
   const line = [artist, venue && place ? `${venue}, ${place}` : venue || place, when, duration ? formatTime(duration) : ''].filter(Boolean).join(' · ');
@@ -144,12 +156,16 @@ export function readVideo(payload) {
 
   const credits = [];
   const row = (k, x) => { if (k && x) credits.push([k, x]); };
-  row('Band', artist);
+  row('By', artist);
   if (Array.isArray(v.credits)) for (const c of v.credits.slice(0, 12)) if (c && typeof c === 'object') row(str(c.role, 64), str(c.name, 256));
   row('Where', venue && place ? `${venue}, ${place}` : venue || place);
   row('When', when);
   row('Recorded on', str(rec.source, 300));
-  row('Tour', str(v.album, 256));
+  row('Part of', str(v.album, 256));
+  const rights = v.contentRights && typeof v.contentRights === 'object' ? v.contentRights : {};
+  row('Credit', str(rights.creditLine, 256));
+  row('License', licenseName(rights.license));
+  row('Copyright', [str(rights.copyrightNotice, 256), Number.isInteger(rights.copyrightYear) ? String(rights.copyrightYear) : ''].filter(Boolean).join(' ') || str(rights.creator, 256) && `© ${str(rights.creator, 256)}`);
   const links = [];
   if (Array.isArray(v.links)) for (const l of v.links.slice(0, 4)) {
     const href = l && safeLink(l.url), label = l && str(l.label, 64);

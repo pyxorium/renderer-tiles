@@ -124,7 +124,7 @@ try {
   await ctl(f, 3);
   check('Credits open over the video', await until(() => !document.querySelector('.sheet').hidden));
   const sheet = (await f.evaluate(() => document.querySelector('.sheet').innerText)).replace(/\s+/g, ' ');
-  check('...the credits, names only', ['Written by Lucinda Williams', 'Opening for Jason Isbell and the 400 Unit', 'When May 3, 2022', 'Shared by @pyxorium.com'].every((s) => sheet.includes(s)), sheet);
+  check('...the credits, names only, worded for any event (By, Part of) and the credit line', ['By Waxahatchee', 'Written by Lucinda Williams', 'Opening for Jason Isbell and the 400 Unit', 'When May 3, 2022', 'Part of Saint Cloud tour', 'Credit Filmed by @pyxorium.com from the audience', 'Shared by @pyxorium.com'].every((s) => sheet.includes(s)), sheet);
   check('...the two links, as buttons with their sites', (await f.evaluate(() => [...document.querySelectorAll('.sheet .links button')].map((b) => b.innerText.replace(/\s+/g, ' ')))).join('|') === 'Waxahatchee ↗ waxahatchee.com|Red Rocks Amphitheatre ↗ redrocksonline.com');
   await page.locator('#f').screenshot({ path: path.join(SHOTS, 'video-credits.png') });
   await f.evaluate(() => document.querySelectorAll('.sheet .links button')[1].click());
