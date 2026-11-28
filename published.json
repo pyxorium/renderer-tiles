@@ -19,5 +19,11 @@
     "cid": "bafyreifdptbj6d5w33znfskwkm53aty4e2ggp4bqt7ph7ufwbuer22ebli",
     "manifestCid": "bafyreigsn7xg6nkfu5xx4blk7k56atf7khwmafgnesxnenb7zdpiw37t6u",
     "publishedAt": "2026-11-21T07:45:42.918Z"
+  },
+  "video-renderer": {
+    "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/ing.dasl.masl/3n3dqswwjko2z",
+    "cid": "bafyreifmnvnguqwu63622xin3tuaaecrod7rk467dyuidzyqrg6ipyacxi",
+    "manifestCid": "bafyreifsqj3g7iozu7dt3d3onyy6xinx4lowaahea7axkhl2nhpw4l4ate",
+    "publishedAt": "2026-11-28T03:23:04.329Z"
   }
 }
